@@ -6,6 +6,8 @@
 
 <p align="center">Recipes for trusting your coding agents: verification, skills, and agent-friendly architecture — baked and ready to serve.</p>
 
+<p align="center"><em>"When you don't have much trust in your agents, … you really can't get the most out of them."</em><br>— Lauren Tan, a.k.a. poteto</p>
+
 The bottleneck with coding agents isn't how fast they write code. It's how much you trust what they hand back. Until you can trust it, you are the verifier, and no amount of parallel agents will save you from that.
 
 poteto-kit is a reusable kit for developers, in three parts: **docs** (`docs/`) that explain each idea and why it works; **templates** (`templates/`) to copy into your repo; and **a runnable example** (`example/`) that proves the templates work. Template bodies are written for agents to read.
