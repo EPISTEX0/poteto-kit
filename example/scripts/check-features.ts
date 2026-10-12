@@ -19,6 +19,9 @@ const readmeSections = [
 const featureDocSections = ['Sub-features', 'How to get to it', 'Driving it']
 const indexLinePattern = /^- \[`([^`]+)`\]\(([^)]+)\) — \S/
 
+const selectorInDoc = /\[(aria-label|data-component|data-action-id)="([^"]+)"\]/g
+const attributeInMarkup = /(aria-label|data-component|data-action-id)\s*[=:]\s*\{?\s*["'`]([^"'`]+)["'`]/g
+
 const errors: string[] = []
 
 function headings(text: string) {
@@ -26,6 +29,29 @@ function headings(text: string) {
     .split('\n')
     .filter((line) => line.startsWith('## '))
     .map((line) => line.slice(3).trim())
+}
+
+function sourceFiles(directory: string): string[] {
+  if (!existsSync(directory)) {
+    return []
+  }
+  return readdirSync(directory).flatMap((name) => {
+    const path = join(directory, name)
+    if (statSync(path).isDirectory()) {
+      return sourceFiles(path)
+    }
+    return /\.tsx?$/.test(name) ? [path] : []
+  })
+}
+
+function markupSelectors(directory: string) {
+  const found = new Set<string>()
+  for (const file of sourceFiles(directory)) {
+    for (const match of readFileSync(file, 'utf8').matchAll(attributeInMarkup)) {
+      found.add(`${match[1]}=${match[2]}`)
+    }
+  }
+  return found
 }
 
 function listDirs(directory: string) {
@@ -121,6 +147,26 @@ for (const id of docIds) {
       `feature-doc-missing-root-selector: the intro of ${docsPath}/${id}.md must name the feature's root selector in backticks, e.g. \`[data-component="..."]\``,
     )
   }
+}
+
+function checkSelectors(file: string, sourceDir: string, sourcePath: string) {
+  const markup = markupSelectors(sourceDir)
+  const text = readFileSync(join(docsDir, file), 'utf8')
+  const named = new Map([...text.matchAll(selectorInDoc)].map((match) => [`${match[1]}=${match[2]}`, match] as const))
+  for (const [selector, match] of named) {
+    if (!markup.has(selector)) {
+      errors.push(
+        `feature-selector-drift: ${docsPath}/${file} names [${match[1]}="${match[2]}"] but nothing in ${sourcePath} sets ${match[1]}="${match[2]}"; make the doc match the markup (or restore the markup)`,
+      )
+    }
+  }
+}
+
+for (const id of docIds.filter((candidate) => featureIds.includes(candidate))) {
+  checkSelectors(`${id}.md`, join(featuresDir, id), `src/features/${id}/`)
+}
+if (existsSync(join(docsDir, crossCuttingDoc))) {
+  checkSelectors(crossCuttingDoc, join(root, 'src'), 'src/')
 }
 
 const crossCuttingPath = join(docsDir, crossCuttingDoc)

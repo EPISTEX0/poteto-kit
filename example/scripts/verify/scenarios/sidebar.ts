@@ -17,7 +17,9 @@ export const scenarios: Scenario[] = [
         u.noteRows.allTextContents(),
       )
       await expect('new note is the selected row', 'Untitled note', () => u.selectedRow.innerText())
-      await expect('editor shows the new note title', 'Untitled note', () => u.title.inputValue())
+      await expect('editor shows the new note title', 'Untitled note', () => u.title.inputValue(), {
+        reaches: 'sidebar-new-note',
+      })
     },
   },
   {
@@ -30,8 +32,11 @@ export const scenarios: Scenario[] = [
       await step('Click the "Grocery list" row', () => u.noteRows.filter({ hasText: 'Grocery list' }).click())
       await expect('clicked row is selected', 'Grocery list', () => u.selectedRow.innerText())
       await expect('editor title is the clicked note', 'Grocery list', () => u.title.inputValue())
-      await expect('editor body is the clicked note body', 'Oat milk, coffee beans, lemons.', () =>
-        u.body.inputValue(),
+      await expect(
+        'editor body is the clicked note body',
+        'Oat milk, coffee beans, lemons.',
+        () => u.body.inputValue(),
+        { reaches: 'sidebar-select-note' },
       )
     },
   },

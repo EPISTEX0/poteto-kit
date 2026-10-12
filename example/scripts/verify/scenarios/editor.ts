@@ -5,14 +5,20 @@ export const scenarios: Scenario[] = [
   {
     feature: 'editor',
     name: 'edit-title-updates-sidebar',
-    description: 'Typing a new title in the editor renames the note in the sidebar.',
+    description: 'Typing a new title in the editor renames the note in the sidebar and makes it findable in search.',
     covers: ['editor-edit-title'],
+    catchesInjectedBug: true,
     async run({ page, step, expect }) {
       const u = ui(page)
       await expect('first seed note is open', 'Welcome to Notes', () => u.title.inputValue())
       await step('Replace the title with "Renamed note"', () => u.title.fill('Renamed note'))
       await expect('editor shows the new title', 'Renamed note', () => u.title.inputValue())
       await expect('sidebar row shows the new title', 'Renamed note', () => u.noteRows.first().innerText())
+      await step('Press Control+K', () => page.keyboard.press('Control+K'))
+      await step('Type "renamed"', () => page.keyboard.type('renamed'))
+      await expect('search finds exactly the renamed note', ['Renamed note'], () => u.searchResults.allTextContents(), {
+        reaches: 'editor-edit-title',
+      })
     },
   },
   {
@@ -28,7 +34,9 @@ export const scenarios: Scenario[] = [
         u.body.inputValue(),
       )
       await step('Switch back to the first note', () => u.noteRows.first().click())
-      await expect('first note body was kept', 'Remember to attach the verify report.', () => u.body.inputValue())
+      await expect('first note body was kept', 'Remember to attach the verify report.', () => u.body.inputValue(), {
+        reaches: 'editor-edit-body',
+      })
     },
   },
 ]

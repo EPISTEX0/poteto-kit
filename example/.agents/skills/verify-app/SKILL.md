@@ -23,8 +23,9 @@ Run from the repository root (the directory with `package.json`).
 | Health of this instance | `npm run verify -- doctor` |
 | One feature, all its scenarios | `npm run verify -- --feature <feature-id>` |
 | One scenario | `npm run verify -- --feature <feature-id> --scenario <scenario-name>` |
-| Everything | `npm run verify:all` |
+| Everything (also writes `artifacts/verify-coverage.json`, the record of which entry points each scenario reached) | `npm run verify:all` |
 | Every listed entry point has a scenario or a stated skip | `npm run verify:coverage` |
+| Every `covers` id was reached by a passing assertion in the last `verify:all` | `npm run verify:reached` |
 | Prove verification can fail | `npm run verify:selftest` |
 
 The command builds the app, starts `vite preview` on the derived port, launches headless Chromium with `playwright-core`, runs the scenarios, and stops everything it started. It exits non-zero on any failed assertion, console error or uncaught page error, and with code 3 when it refuses to start because the port is taken.
@@ -50,9 +51,9 @@ Prefer ARIA labels and semantic data attributes: `[aria-label]`, `[data-componen
 ## Adding or changing a scenario
 1. Create or edit `scripts/verify/scenarios/<feature-id>.ts` exporting `scenarios: Scenario[]`. Files in that directory are discovered; there is no registry to edit.
 2. Declare `covers: [...]` with the ids from the feature file's Sub-features (or Flows) list. If you add an entry point, add its id to the feature file in the same change.
-3. Use `expect(name, expected, read)` for every outcome; it polls briefly, then records expected vs observed. Use `step(description, action)` for interactions.
+3. Use `expect(name, expected, read)` for every outcome; it polls briefly, then records expected vs observed. Put `{ reaches: '<id>' }` as the fourth argument of the assertion that proves an entry point, normally the last one its feature-file description promises (for example the search result after a rename, not only the sidebar). A scenario that lists an id in `covers` and never passes such an assertion fails. Use `step(description, action)` for interactions.
 4. Prove it can fail: break the behaviour (or use the `INJECT_BUG` pattern) and watch the scenario go red before trusting it.
-5. Run `npm run verify:coverage` and `npm run check:features`.
+5. Run `npm run verify:coverage`, `npm run check:features`, and after `npm run verify:all`, `npm run verify:reached`.
 
 ## Rules
 - A scenario that cannot fail is not verification. Every new scenario must be seen failing once.

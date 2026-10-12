@@ -135,12 +135,16 @@ done
 4. Wire the check into the existing lint or CI gate only if the developer allowed CI changes. Otherwise leave it runnable with one command and write the command in the report.
 5. Log the rule under "Rules promoted": the comment, the check, the fixture path, how many existing violations were fixed.
 
+**Exit criterion:** the check fails on its fixture and passes on the repo (or its existing violations are fixed, or parked in a named list with the decision recorded), and the developer has the one command that runs it. If the fixture was never red, the rule is not done.
+
 ## Phase 4: Map the top features
 
 1. Ask the developer for the 3 features that matter most (or propose them from the routes and README and get a yes). Write one file per feature in `.agents/skills/verify-app/references/features/<feature-id>.md` from the installed `_feature.template.md`, plus its index line in that directory's `README.md` (exact form ``- [`<id>`](<id>.md) — scope``). Rules and proof conventions: `docs/03-feature-map.md`.
 2. Write from the user's point of view: visible text and entry points first. If a journey spans features, replace the stub `cross-cutting-flows.md` with a filled copy of `templates/skills/verify-app/references/features/cross-cutting-flows.md`, real flows only. Then verify each map by following only the file from a cold app start, and show one report per feature.
 3. Check the vague-report test: take a bug report that is only a screenshot or a one-line complaint and show a fresh subagent or session, given only the skill files and that report, finding the right feature file and reproducing.
-4. `templates/ci/check-feature-map.sh` is a two-way check: it fails for every directory under the features dir that has no map file. Install it to `scripts/check-feature-map.sh` only if the repo has one directory per feature, and wire it into CI only if CI changes are allowed and every feature directory is mapped (with a partial map, run it locally and record the gaps in the log). The optional `templates/ci/check-coverage.mjs` needs a scenarios manifest; offer it, do not push it. For each script you install, point the matching URLs in the skills back to the local path.
+4. `templates/ci/check-feature-map.sh` is a two-way check: it fails for every directory under the features dir that has no map file. Install it to `scripts/check-feature-map.sh` only if the repo has one directory per feature, and wire it into CI only if CI changes are allowed and every feature directory is mapped (with a partial map, run it locally and record the gaps in the log). The optional `templates/ci/check-coverage.mjs` needs a scenarios manifest, which the verify command should write from the run (a hand-kept list is only a claim); offer it, do not push it. For each script you install, point the matching URLs in the skills back to the local path.
+
+**Exit criterion:** three feature files with index lines exist, each was followed from a cold app start with a report to show for it, and the vague-report test found the right file. A script installed in item 4 passes on the repo, or its gaps are in the log.
 
 ## Phase 5: Menu for later
 

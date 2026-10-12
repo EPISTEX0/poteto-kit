@@ -27,6 +27,8 @@ export function isPortFree(port: number) {
 
 export type Holder = { pid: number; command: string; cwd: string | null; ours: boolean }
 
+export type HolderTool = 'ss' | 'lsof'
+
 function readText(path: string) {
   try {
     return readFileSync(path, 'utf8')
@@ -35,20 +37,51 @@ function readText(path: string) {
   }
 }
 
-export function findHolder(port: number, root: string): Holder | null {
-  const listing = spawnSync('ss', ['-ltnpH', `sport = :${port}`], { encoding: 'utf8' })
-  const pid = Number(/pid=(\d+)/.exec(listing.stdout ?? '')?.[1])
+function run(command: string, args: string[]) {
+  return spawnSync(command, args, { encoding: 'utf8' }).stdout ?? ''
+}
+
+export function parseSsPid(output: string) {
+  return Number(/pid=(\d+)/.exec(output)?.[1]) || null
+}
+
+export function parseLsofPid(output: string) {
+  return Number(/^p(\d+)$/m.exec(output)?.[1]) || null
+}
+
+function holderPid(port: number, tools: readonly HolderTool[]) {
+  for (const tool of tools) {
+    const pid =
+      tool === 'ss'
+        ? parseSsPid(run('ss', ['-ltnpH', `sport = :${port}`]))
+        : parseLsofPid(run('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-Fp']))
+    if (pid) {
+      return pid
+    }
+  }
+  return null
+}
+
+function processCommand(pid: number) {
+  const fromProc = readText(`/proc/${pid}/cmdline`)?.split('\0').join(' ').trim()
+  return fromProc || run('ps', ['-o', 'command=', '-p', String(pid)]).trim() || 'unknown command'
+}
+
+function processCwd(pid: number) {
+  try {
+    return readlinkSync(`/proc/${pid}/cwd`)
+  } catch {
+    return /^n(.+)$/m.exec(run('lsof', ['-nP', '-a', '-p', String(pid), '-d', 'cwd', '-Fn']))?.[1] ?? null
+  }
+}
+
+export function findHolder(port: number, root: string, tools: readonly HolderTool[] = ['ss', 'lsof']): Holder | null {
+  const pid = holderPid(port, tools)
   if (!pid) {
     return null
   }
-  const command = readText(`/proc/${pid}/cmdline`)?.split('\0').join(' ').trim() ?? 'unknown command'
-  let cwd: string | null
-  try {
-    cwd = readlinkSync(`/proc/${pid}/cwd`)
-  } catch {
-    cwd = null
-  }
-  return { pid, command, cwd, ours: cwd === root }
+  const cwd = processCwd(pid)
+  return { pid, command: processCommand(pid), cwd, ours: cwd === root }
 }
 
 export function describeHolder(holder: Holder | null) {

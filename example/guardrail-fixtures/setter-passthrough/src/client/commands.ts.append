@@ -1,0 +1,4 @@
+
+export function setNotesState(fn: (s: NotesState) => NotesState) {
+  store.set(fn)
+}

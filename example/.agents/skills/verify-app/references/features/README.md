@@ -3,7 +3,7 @@
 ## Purpose
 This directory describes every user-facing feature of the Notes app from the user's point of view: what it is, how to reach it, how to use it and how to drive it in a browser. There is one file per feature, plus `cross-cutting-flows.md` for journeys that span features. Read the file for the feature you are about to touch before you drive or reproduce anything.
 
-These files teach how to use a feature, not how it is built. For internals read the code under `src/features/<id>/`; code changes faster than any document. Treat this directory as the maintained source for verification: `npm run check:features` and `npm run verify:coverage` fail when it drifts from the code or from the scenarios.
+These files teach how to use a feature, not how it is built. For internals read the code under `src/features/<id>/`; code changes faster than any document. Treat this directory as the maintained source for verification: `npm run check:features` and `npm run verify:coverage` fail when it drifts from the code or from the scenarios (`check:features` also compares the `aria-label`, `data-component` and `data-action-id` selectors named in a feature file with the markup in `src/features/<id>/`; roles, ARIA state, visible text and behaviour are not compared, so the scenarios are what proves those).
 
 ## Mapping a vague report to a feature
 Reports are often a screenshot and "???". Do not grep the code first. Read every piece of visible text in the report (labels, button names, titles), search this directory for that text, open the matching file, follow **How to get to it**, reproduce with **Driving it**, and capture evidence. State the mapping in your report ("the screenshot shows X in the top bar, which is sub-feature `search-open-button`"). If nothing matches, say so, list the text you tried, and add the missing file afterwards.
@@ -28,7 +28,7 @@ A feature file defines the coverage set: every id listed under its `## Sub-featu
 
 - A proof that exercises only one convenient entry point is incomplete when the file lists others, for example a keyboard chord and a button that do the same thing. Cover each reachable entry point, and the success, cancel and empty paths your change can affect.
 - Record the action and the final observable state. A synthetic setup that bypasses the user path does not count.
-- A scenario declares what it proves with `covers: ['<id>', ...]`. `npm run verify:coverage` fails for any listed id that no scenario covers.
+- A scenario declares what it proves with `covers: ['<id>', ...]` and backs each id with a passing assertion tagged `{ reaches: '<id>' }`. `npm run verify:coverage` fails for any listed id that no scenario covers; `npm run verify:all` fails a scenario that lists an id it never reached, and `npm run verify:reached` fails when the last run's record (`artifacts/verify-coverage.json`) lacks a declared id. A `covers` list alone proves nothing.
 - When a path cannot be reached, say so in the file: end that id's line with `skip: <reason>`. The reason names what blocks it. Cover the closest real path with a scenario instead, and expect the skip to show up in the coverage output.
 
 ## Full sweep

@@ -5,7 +5,8 @@ import { chromium, type Browser } from 'playwright-core'
 import { resolveChrome } from './chrome'
 import { appReady } from './selectors'
 import { passed, renderReport, type ConsoleEntry, type RunResult } from './report'
-import { createContext, ScenarioFailure, type Scenario } from './scenario'
+import { buildCoverageRecord, coverageRecordPath } from './coverage-record'
+import { coverageProblem, createContext, ScenarioFailure, type Scenario } from './scenario'
 import { runDoctor } from './doctor'
 import { loadScenarios } from './load-scenarios'
 import { choosePort, PortRefusal } from './port'
@@ -24,7 +25,7 @@ screenshot.png, console.json, trace.json and report.md under artifacts/<timestam
 Options:
   --feature <id>      run every scenario of one feature
   --scenario <name>   with --feature, run only this scenario
-  --all               run every scenario (npm run verify:all)
+  --all               run every scenario (npm run verify:all) and write verify-coverage.json (the entry points each scenario reached) to the artifacts directory
   --port <n>          preview port; refused with exit 3 if something already holds it
   --no-build          reuse dist/ from the last verify build instead of rebuilding
   -h, --help          show this text
@@ -140,7 +141,7 @@ async function runScenario(
   })
 
   const session = await browserContext.newCDPSession(page)
-  const { context, steps, checks } = createContext(page)
+  const { context, steps, checks, reached } = createContext(page)
   let failure: string | null = null
   let trace: TraceSummary | null = null
 
@@ -154,6 +155,7 @@ async function runScenario(
   } catch (error) {
     failure = error instanceof ScenarioFailure ? error.message : `unexpected error: ${String(error)}`
   }
+  failure ??= coverageProblem(scenario, reached)
 
   await page.screenshot({ path: join(artifactDir, 'screenshot.png') })
   try {
@@ -181,6 +183,7 @@ async function runScenario(
     durationMs: Date.now() - started,
     steps,
     checks,
+    reached: [...reached].sort(),
     consoleEntries,
     trace,
     failure,
@@ -234,6 +237,9 @@ async function main() {
     await server.stop()
   }
 
+  if (values.all) {
+    writeFileSync(coverageRecordPath(), `${JSON.stringify(buildCoverageRecord(results), null, 2)}\n`)
+  }
   const failed = results.filter((result) => !passed(result))
   console.log(`\n${results.length - failed.length}/${results.length} scenarios passed. Artifacts: ${runDir}`)
   process.exit(failed.length === 0 ? 0 : 1)

@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client'
+import { appConfig } from '@/app-config'
 import { resetNotes } from '@/client'
 import { startMain } from '@/electron/main'
 import { loadNotes } from '@/electron/renderer'
@@ -12,4 +13,4 @@ if (!container) {
 
 startMain()
 resetNotes(await loadNotes())
-createRoot(container).render(<Shell features={discoverFeatures()} />)
+createRoot(container).render(<Shell title={appConfig.name} features={discoverFeatures()} />)

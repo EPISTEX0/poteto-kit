@@ -2,12 +2,13 @@ import js from '@eslint/js'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import tseslint from 'typescript-eslint'
 import { noComments } from './eslint-rules/no-comments.js'
+import { storeStaysPrivate } from './eslint-rules/store-stays-private.js'
 
 const useEffectMessage =
   'useEffect and useLayoutEffect are banned. Effects hide data flow and cause stale-state bugs that agents cannot see. Derive state during render, update it in event handlers, use useSyncExternalStore for external stores, or a ref callback for DOM subscriptions.'
 
 const globMessage =
-  'import.meta.glob is only allowed in src/framework/discover.ts. It reads files by path and so bypasses the import rules. To add a feature, add a folder with a feature.tsx; to read notes, import from @/client.'
+  'import.meta.glob is only allowed in src/framework/discover.ts, and import.meta may not be aliased or destructured anywhere else. Globbing reads files by path and so bypasses the import rules. To add a feature, add a folder with a feature.tsx; to read notes, import from @/client.'
 
 const featureInternalMessage =
   'Feature internals are private. Import another feature only through its index (@/features/<id>), use @/ aliases for shared code, and use ./ for files inside your own feature.'
@@ -17,6 +18,9 @@ const featureRegistryMessage =
 
 const clientWriterMessage =
   "Durable notes state has one writer. Import commands and queries from '@/client' (commands live in src/client/commands.ts). To change state in a new way, add a command there instead of touching the store."
+
+const clientStoreMessage =
+  'The notes store is built in src/client/commands.ts and nowhere else in src/client. Add a command there instead of building a second store.'
 
 const frameworkMessage =
   'src/framework is a standalone package: it may import only itself and npm packages. It must not know about features, the client or app code. Receive what it needs through a Feature definition or props.'
@@ -33,7 +37,11 @@ const effectSyntax = [
 ]
 
 const globSyntax = [
-  { selector: 'MemberExpression[object.type="MetaProperty"][property.name="glob"]', message: globMessage },
+  {
+    selector: 'MemberExpression[object.type="MetaProperty"]:not([property.name=/^(env|url|dirname|filename)$/])',
+    message: globMessage,
+  },
+  { selector: ':not(MemberExpression) > MetaProperty[meta.name="import"]', message: globMessage },
 ]
 
 const clientPatterns = [
@@ -59,9 +67,10 @@ export default defineConfig(
   tseslint.configs.recommended,
   {
     linterOptions: { noInlineConfig: true },
-    plugins: { local: { rules: { 'no-comments': noComments } } },
+    plugins: { local: { rules: { 'no-comments': noComments, 'store-stays-private': storeStaysPrivate } } },
     rules: {
       'local/no-comments': 'error',
+      'local/store-stays-private': 'error',
       'no-restricted-imports': ['error', { paths, patterns: [...internalPatterns, ...clientPatterns] }],
       'no-restricted-syntax': ['error', ...effectSyntax, ...globSyntax],
     },
@@ -86,6 +95,16 @@ export default defineConfig(
     files: ['src/client/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': ['error', { paths, patterns: registryPatterns }],
+    },
+  },
+  {
+    files: ['src/client/**/*.{ts,tsx}'],
+    ignores: ['src/client/commands.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths, patterns: [...registryPatterns, { regex: '(^|/)create-store$', message: clientStoreMessage }] },
+      ],
     },
   },
   {

@@ -15,6 +15,7 @@ export type RunResult = {
   durationMs: number
   steps: StepRecord[]
   checks: CheckRecord[]
+  reached: string[]
   consoleEntries: ConsoleEntry[]
   trace: TraceSummary | null
   failure: string | null
@@ -58,6 +59,9 @@ export function renderReport(result: RunResult) {
       `| ${cell(check.name)} | \`${cell(check.expected)}\` | \`${cell(check.observed)}\` | ${check.pass ? 'pass' : 'FAIL'} |`,
     )
   }
+
+  lines.push('', '## Entry points reached', '')
+  lines.push(result.reached.length > 0 ? result.reached.map((id) => `- \`${id}\``).join('\n') : '- none')
 
   lines.push('', '## Console', '')
   lines.push(`- Errors: ${result.consoleEntries.length} (details in \`console.json\`)`)

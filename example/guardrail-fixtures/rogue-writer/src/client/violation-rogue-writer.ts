@@ -1,3 +1,3 @@
-import { notesStore } from './commands'
+import { store } from './commands'
 
-export const wipeNotes = () => notesStore.set((state) => ({ ...state, notes: [] }))
+export const wipeNotes = () => store.set((state) => ({ ...state, notes: [], selectedId: null }))

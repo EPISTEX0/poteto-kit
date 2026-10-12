@@ -1,0 +1,6 @@
+
+export { store as notesStore }
+export const rawSetter = store.set
+export default store
+const alias = store
+export const readAlias = () => alias.get()

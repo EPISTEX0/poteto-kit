@@ -23,7 +23,7 @@ A judge on a different model counters self-bias: a model tends to rate its own s
 
 1. **Write the rubric from intent.** Ask: what must be true of the agent's behavior and output if the skill works? Write 5-10 criteria, each observable, each scored 0-10 with anchors (see `rubric.template.md`). Include at least one negative criterion (what the skill must prevent, for example "claims a root cause without citing file:line").
 2. **Build N tasks (aim for 5-8, plus 2-3 hold-out).** Cover: the original failure that motivated the skill, the easy case, an ambiguous case, a case where the skill should not apply (to check it does not fire wrongly), and a case where the app cannot run (to check honest failure). Each task is a small self-contained directory: repo snapshot or fixture, the prompt as a user would really write it, and nothing else.
-3. **Name directories neutrally.** Use names like `work-0417`, `ticket-a3`, `scratch-nord`. Never "eval", "test", "benchmark", "score", "rubric", "skill-test". Agents can detect that they are being evaluated and change their behavior. Also: no rubric text in the prompt, no scoreboard in the tree, no "as part of a check" phrasing, workers' working directory is only their task directory (copy it to `/tmp/<run>/<neutral-name>/`).
+3. **Name directories neutrally.** Use names like `work-0417`, `ticket-a3`, `scratch-nord`. Never "eval", "test", "benchmark", "score", "rubric", "skill-test", "skill-check" in a directory name, file name or prompt. Agents can detect that they are being evaluated and change their behavior. Also: no rubric text in the prompt, no scoreboard in the tree, no "as part of a check" phrasing, workers' working directory is only their task directory (copy it to `/tmp/<run>/<neutral-name>/`).
 4. **Spawn workers: task x model.** For each task and each model in `{{MODELS}}`, start a fresh subagent with the real user prompt. Run in parallel but cap concurrency by memory (see section 5). Each worker has the skill installed the way your agents get it in real use (same skills directory, same `AGENTS.md`).
 5. **Collect.** For each run store: the full transcript (tool calls and thinking blocks if available), final answer, produced files/diff, artifacts such as screenshots, and the final directory state. Record the model, the skill version (git commit hash of `{{SKILL_PATH}}`) and the run id.
 6. **Judge.** Spawn the judge on `{{JUDGE_MODEL}}` once per run (fresh context), give it `judge-prompt.md`, the rubric, and the run's evidence. Require JSON output. Reject any judgment lacking an evidence quote for a score above 3, or a `failure_reason` for a score below 10; rerun it.
@@ -56,7 +56,7 @@ Steps:
    Show me the rubric before you spawn anything and wait for my approval or edits.
 2. Create 6 training tasks and 2 hold-out tasks as directories under /tmp/{{SKILL_NAME}}-run/.
    Names must be neutral (for example work-0417, ticket-a3). Never use the words eval, test, benchmark,
-   score, rubric, skill-check in a directory name, file name or prompt. Each directory contains only a
+   score, rubric, skill-test, skill-check in a directory name, file name or prompt. Each directory contains only a
    realistic fixture and PROMPT.md written the way a real teammate would write the request. Include: the
    original failure case, an easy case, an ambiguous case, a not-applicable case, and a cannot-run-the-app case.
 3. For every task and every model in the list, spawn a fresh subagent whose working directory is only

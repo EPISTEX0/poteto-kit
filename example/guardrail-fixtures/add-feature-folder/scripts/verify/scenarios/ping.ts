@@ -7,7 +7,9 @@ export const scenarios: Scenario[] = [
     description: 'The ping button is rendered in the top bar.',
     covers: ['ping-send'],
     async run({ page, expect }) {
-      await expect('ping button is present', 1, () => page.locator('[data-action-id="ping.send"]').count())
+      await expect('ping button is present', 1, () => page.locator('[data-action-id="ping.send"]').count(), {
+        reaches: 'ping-send',
+      })
     },
   },
 ]

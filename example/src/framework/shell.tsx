@@ -1,6 +1,6 @@
 import type { Feature, Slot } from './feature'
 
-export function Shell({ features }: { features: readonly Feature[] }) {
+export function Shell({ title, features }: { title: string; features: readonly Feature[] }) {
   const parts = (slot: Slot) =>
     features.flatMap((feature) => {
       const Part = feature.slots[slot]
@@ -10,7 +10,7 @@ export function Shell({ features }: { features: readonly Feature[] }) {
   return (
     <div className="shell" data-component="app-shell">
       <header className="topbar" data-component="topbar">
-        <h1 className="app-title">Notes</h1>
+        <h1 className="app-title">{title}</h1>
         {parts('topbar')}
       </header>
       <div className="workspace">

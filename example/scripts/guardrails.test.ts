@@ -19,13 +19,19 @@ import { createServer as createSocketServer, type AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { after, describe, test } from 'node:test'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { appConfig } from '../src/app-config'
+import { Shell } from '../src/framework/shell'
+import type { CoverageRecord } from './verify/coverage-record'
 import { nodeSatisfies } from './verify/doctor'
-import { derivePort } from './verify/port'
+import { loadScenarios } from './verify/load-scenarios'
+import { derivePort, findHolder, parseLsofPid, parseSsPid } from './verify/port'
 import { renderReport, type RunResult } from './verify/report'
 import { waitUntilReady, type BuildInfo } from './verify/server'
 import { summarizeTrace } from './verify/trace'
 
-type Gate = 'lint' | 'typecheck' | 'check:deps' | 'check:features' | 'verify:coverage'
+type Gate = 'lint' | 'typecheck' | 'check:deps' | 'check:features' | 'verify:coverage' | 'verify:reached'
 
 type Finding = { ruleId: string; text: string }
 
@@ -74,6 +80,7 @@ const gateArgs: Record<Gate, string[]> = {
   'check:deps': [],
   'check:features': [],
   'verify:coverage': [],
+  'verify:reached': [],
 }
 
 const cases: Case[] = [
@@ -99,6 +106,17 @@ const cases: Case[] = [
   {
     fixture: 'glob-outside-discover',
     expects: [{ gate: 'lint', ruleId: 'no-restricted-syntax', text: 'import.meta.glob is only allowed' }],
+  },
+  {
+    fixture: 'glob-aliased',
+    expects: [{ gate: 'lint', ruleId: 'no-restricted-syntax', text: 'import.meta.glob is only allowed', times: 2 }],
+  },
+  {
+    fixture: 'eslint-disable-escape',
+    expects: [
+      { gate: 'lint', ruleId: 'no-restricted-imports', text: 'useEffect and useLayoutEffect are banned' },
+      { gate: 'lint', ruleId: 'local/no-comments', text: 'Code comments are banned' },
+    ],
   },
   {
     fixture: 'comment',
@@ -154,7 +172,28 @@ const cases: Case[] = [
   },
   {
     fixture: 'rogue-writer',
-    expects: [{ gate: 'typecheck', ruleId: 'TS2724', text: "has no exported member named 'notesStore'" }],
+    edits: [{ file: 'src/client/commands.ts', from: 'const store = createStore', to: 'export const store = createStore' }],
+    scope: ['src/client/commands.ts'],
+    expects: [{ gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' }],
+  },
+  {
+    fixture: 'store-leak-variants',
+    scope: ['src/client/commands.ts'],
+    expects: [{ gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts', times: 4 }],
+  },
+  {
+    fixture: 'setter-passthrough',
+    scope: ['src/client/commands.ts'],
+    expects: [{ gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' }],
+  },
+  {
+    fixture: 'setter-callback-passthrough',
+    scope: ['src/client/commands.ts'],
+    expects: [{ gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' }],
+  },
+  {
+    fixture: 'client-second-store',
+    expects: [{ gate: 'lint', ruleId: 'no-restricted-imports', text: 'built in src/client/commands.ts' }],
   },
   {
     fixture: 'framework-imports-feature',
@@ -289,6 +328,18 @@ const cases: Case[] = [
     edits: [{ file: `${featureDocs}/cross-cutting-flows.md`, from: '## Flows', to: '## Journeys' }],
     scope: ['cross-cutting-flows.md'],
     expects: [{ gate: 'check:features', ruleId: 'feature-doc-missing-section', text: 'cross-cutting-flows.md has no "## Flows"' }],
+  },
+  {
+    mutation: 'feature-selector-drift-component',
+    edits: [{ file: 'src/features/sidebar/sidebar.tsx', from: 'data-component="note-item"', to: 'data-component="note-row"' }],
+    scope: ['sidebar.md'],
+    expects: [{ gate: 'check:features', ruleId: 'feature-selector-drift', text: 'sidebar.md names [data-component="note-item"]' }],
+  },
+  {
+    mutation: 'feature-selector-drift-aria-label',
+    edits: [{ file: 'src/features/editor/editor.tsx', from: 'aria-label="Note title"', to: 'aria-label="Title"' }],
+    scope: ['editor.md', 'cross-cutting-flows.md'],
+    expects: [{ gate: 'check:features', ruleId: 'feature-selector-drift', text: 'names [aria-label="Note title"]', times: 2 }],
   },
   {
     fixture: 'coverage-gap',
@@ -530,6 +581,140 @@ describe('adding a feature is only new files', () => {
   })
 })
 
+async function writeRunRecord(sandbox: string, change: (record: CoverageRecord) => void) {
+  const record: CoverageRecord = {
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    command: 'npm run verify:all',
+    injectBug: false,
+    scenarios: (await loadScenarios()).map((scenario) => ({
+      name: `${scenario.feature}/${scenario.name}`,
+      passed: true,
+      covers: [...scenario.covers],
+    })),
+  }
+  change(record)
+  mkdirSync(join(sandbox, 'artifacts'), { recursive: true })
+  writeFileSync(join(sandbox, 'artifacts', 'verify-coverage.json'), JSON.stringify(record))
+}
+
+function reachedFindings(sandbox: string) {
+  const run = runGate(sandbox, 'verify:reached')
+  return { run, found: findings('verify:reached', run, sandbox) }
+}
+
+describe('coverage comes from what ran, not from what a scenario declares', () => {
+  test('without a record of a verify:all run there is no coverage', () => {
+    const { run, found } = reachedFindings(makeSandbox('reached-no-run'))
+    assert.notEqual(run.status, 0)
+    assert.deepEqual(found.map((finding) => finding.ruleId), ['verify-coverage-no-run'])
+    assert.match(found[0]?.text ?? '', /run npm run verify:all first/)
+  })
+
+  test('a run in which every declared id was reached passes', async () => {
+    const sandbox = makeSandbox('reached-all')
+    await writeRunRecord(sandbox, () => {})
+    const { run } = reachedFindings(sandbox)
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+    assert.match(run.stdout, /verify:reached ok \(12 of 13 entry points reached by the last verify:all run/)
+  })
+
+  test('an id a scenario declares but the run never reached fails, naming the scenario and the id', async () => {
+    const sandbox = makeSandbox('reached-missing-id')
+    await writeRunRecord(sandbox, (record) => {
+      const entry = record.scenarios.find((scenario) => scenario.name === 'editor/edit-title-updates-sidebar')
+      assert.ok(entry)
+      entry.covers = []
+    })
+    const { run, found } = reachedFindings(sandbox)
+    assert.notEqual(run.status, 0)
+    assert.equal(found.length, 1, found.map((finding) => finding.text).join('\n'))
+    assert.equal(found[0]?.ruleId, 'verify-coverage-not-reached')
+    assert.match(found[0]?.text ?? '', /editor\/edit-title-updates-sidebar declares covers: \['editor-edit-title'\]/)
+  })
+
+  test('a scenario that failed reaches nothing, whatever it declares', async () => {
+    const sandbox = makeSandbox('reached-failed-scenario')
+    await writeRunRecord(sandbox, (record) => {
+      const entry = record.scenarios.find((scenario) => scenario.name === 'search/shortcut-filters-and-selects')
+      assert.ok(entry)
+      entry.passed = false
+      entry.covers = []
+    })
+    const { found } = reachedFindings(sandbox)
+    assert.deepEqual(
+      found.map((finding) => finding.ruleId),
+      ['verify-coverage-not-reached', 'verify-coverage-not-reached', 'verify-coverage-not-reached'],
+    )
+    assert.ok(found.every((finding) => finding.text.includes('(the scenario failed)')))
+  })
+
+  test('a run built with INJECT_BUG=1 is not coverage', async () => {
+    const sandbox = makeSandbox('reached-bug-run')
+    await writeRunRecord(sandbox, (record) => {
+      record.injectBug = true
+    })
+    const { run, found } = reachedFindings(sandbox)
+    assert.notEqual(run.status, 0)
+    assert.deepEqual(found.map((finding) => finding.ruleId), ['verify-coverage-bug-run'])
+  })
+
+  test('a scenario added after the last run is stale until verify:all runs again', async () => {
+    const sandbox = makeSandbox('reached-stale-run')
+    await writeRunRecord(sandbox, (record) => {
+      record.scenarios = record.scenarios.filter((scenario) => scenario.name !== 'sidebar/select-note')
+    })
+    const { run, found } = reachedFindings(sandbox)
+    assert.notEqual(run.status, 0)
+    assert.deepEqual(found.map((finding) => finding.ruleId), ['verify-coverage-stale-run'])
+  })
+
+  test('end to end: a real scenario that declares an entry and never asserts on it fails verify and the reached check', async () => {
+    const sandbox = makeSandbox('reached-end-to-end')
+    applyMutation(sandbox, {
+      edits: [
+        {
+          file: 'scripts/verify/scenarios/editor.ts',
+          from: ", {\n        reaches: 'editor-edit-title',\n      })",
+          to: ')',
+        },
+      ],
+    })
+    const port = await freePort()
+    const verify = spawnSync('npm', ['run', '--silent', 'verify', '--', '--all', '--port', String(port)], {
+      cwd: sandbox,
+      encoding: 'utf8',
+    })
+    assert.equal(verify.status, 1, `${verify.stdout}\n${verify.stderr}`)
+    assert.match(
+      verify.stdout,
+      /FAIL {2}editor\/edit-title-updates-sidebar {2}scenario covers \[editor-edit-title\] but no passing expect/,
+    )
+    assert.match(verify.stdout, /PASS {2}editor\/edit-body-persists/)
+    const { run, found } = reachedFindings(sandbox)
+    assert.notEqual(run.status, 0)
+    assert.deepEqual(
+      found.map((finding) => finding.ruleId),
+      ['verify-coverage-not-reached'],
+    )
+    assert.match(found[0]?.text ?? '', /editor\/edit-title-updates-sidebar declares covers: \['editor-edit-title'\].*\(the scenario failed\)/)
+  })
+})
+
+describe('the framework knows nothing about the app', () => {
+  test('no file in src/framework mentions the app name, which the app passes in', () => {
+    const mentions = walk(join(projectRoot, 'src', 'framework')).filter((file) =>
+      readFileSync(file, 'utf8').includes(appConfig.name),
+    )
+    assert.deepEqual(mentions.map((file) => relative(projectRoot, file)), [])
+  })
+
+  test('the shell renders the title it is given', () => {
+    const markup = renderToStaticMarkup(createElement(Shell, { title: 'Zebra', features: [] }))
+    assert.match(markup, /<h1 class="app-title">Zebra<\/h1>/)
+    assert.doesNotMatch(markup, new RegExp(appConfig.name))
+  })
+})
+
 describe('preview port isolation', () => {
   test('the derived port is stable per project path and differs between paths', () => {
     assert.equal(derivePort('/work/notes'), derivePort('/work/notes'))
@@ -558,6 +743,28 @@ describe('preview port isolation', () => {
     } finally {
       holder.kill('SIGKILL')
     }
+  })
+
+  test('the holder is found with lsof alone, as on macOS where ss does not exist', async () => {
+    const port = await freePort()
+    const holder = await holdPort(port)
+    try {
+      const found = findHolder(port, realpathSync(projectRoot), ['lsof'])
+      assert.equal(found?.pid, holder.pid)
+      assert.equal(found?.cwd, realpathSync(foreignDirectory()))
+      assert.match(found?.command ?? '', /net/)
+      assert.equal(found?.ours, false)
+      assert.equal(findHolder(await freePort(), realpathSync(projectRoot), ['lsof']), null)
+    } finally {
+      holder.kill('SIGKILL')
+    }
+  })
+
+  test('the pid parsers read the ss and lsof listings', () => {
+    assert.equal(parseSsPid('LISTEN 0 511 127.0.0.1:20000 0.0.0.0:* users:(("node",pid=4242,fd=19))\n'), 4242)
+    assert.equal(parseSsPid(''), null)
+    assert.equal(parseLsofPid('p4242\n'), 4242)
+    assert.equal(parseLsofPid(''), null)
   })
 
   test('verify refuses an explicit --port that another process holds, before building or driving anything', async () => {
@@ -710,6 +917,7 @@ describe('verify report', () => {
       durationMs: 1,
       steps: [],
       checks: [],
+      reached: [],
       consoleEntries: [],
       trace: summarizeTrace(trace),
       failure: null,

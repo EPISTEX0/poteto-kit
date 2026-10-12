@@ -8,7 +8,11 @@
 //    --manifest   a JSON manifest of scenarios (default verify-coverage.json; repeatable)
 //    --scenarios  a directory scanned recursively for files named *.scenario.* that declare
 //                 covers: [...] or "covers": [...] (repeatable; optional)
-// 3. The portable default is the JSON manifest verify-coverage.json:
+// 3. Trust: this script believes the manifest. A hand-kept manifest, or a covers array in a source file, is a
+//    claim that a scenario reaches an id, not proof that it did. Have your verify command write the manifest
+//    after the run, listing in each passing scenario only the ids that a passing assertion reached (a failed
+//    scenario lists none). The kit's example/ does this (verify:all writes artifacts/verify-coverage.json).
+//    The portable default is the JSON manifest verify-coverage.json:
 //      { "scenarios": [ { "name": "sidebar/new-note", "covers": ["sidebar-new-note"] } ] }
 //    A bare array of the same objects also works. Keep one entry per scenario you actually run.
 // 4. What it reads: in every <feature-id>.md, the bullets under "## Sub-features"; in

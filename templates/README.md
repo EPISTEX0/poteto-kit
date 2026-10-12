@@ -48,7 +48,7 @@ Templates refer to each other by their path in this kit (for example `guardrails
 
 1. Copy the file into your repo (suggested paths are in the file map below).
 2. Search the file for `{{` to find every spot that needs filling in. `{{NAME}}` is a placeholder for you to fill in; don't leave any behind. The one exception is `_feature.template.md`, the copy source for feature files: search the installed skills with `grep -rn "{{" .agents/skills --exclude=_feature.template.md`. The placeholders section below lists all of them.
-3. Each template starts with a comment block `<!-- HOW TO USE: ... -->` (the two scripts in `ci/` and `ci.yml` use `#` lines) giving brief usage instructions. Read it, then delete it. For `SKILL.md` files specifically, the frontmatter (`---`) must be on the very first line so the agent recognizes the skill, so the comment block goes right after the frontmatter.
+3. Each template starts with a comment block `<!-- HOW TO USE: ... -->` (`ci/check-feature-map.sh` and `ci/ci.yml` use `#` lines; `ci/check-coverage.mjs` uses `//` lines) giving brief usage instructions. Read it, then delete it. For `SKILL.md` files specifically, the frontmatter (`---`) must be on the very first line so the agent recognizes the skill, so the comment block goes right after the frontmatter.
 4. Try it out with a real agent and keep the evidence (screenshots, logs, traces) before you trust the template.
 5. Anything in a template that refers to this kit's `example/` directory is in the HOW TO USE comment and goes away with it.
 
@@ -82,7 +82,7 @@ Templates refer to each other by their path in this kit (for example `guardrails
 | `guardrails/architecture-contract.md` | An agent-friendly architecture contract: agent behavior as a design input, 5 rules, public nouns, package boundaries | `docs/` |
 | `ci/ci.yml` | A GitHub Actions template that runs your gate and uploads artifacts on failure; fill in the placeholders | `.github/workflows/ci.yml` |
 | `ci/check-feature-map.sh` | Gate script (POSIX shell): every feature directory has a feature-map file and an index line, and the reverse | `scripts/check-feature-map.sh` |
-| `ci/check-coverage.mjs` | Gate script (Node, no dependencies): every entry point in the map is covered by a scenario or marked `skip: <reason>`; fails on uncovered, unknown, duplicate and stale-skip ids | `scripts/check-coverage.mjs` |
+| `ci/check-coverage.mjs` | Gate script (Node, no dependencies): every entry point in the map is covered by a scenario in the manifest it reads, or marked `skip: <reason>`; fails on uncovered, unknown, duplicate and stale-skip ids. It trusts the manifest: generate it from the run (see Step 2), do not keep it by hand | `scripts/check-coverage.mjs` |
 | `automation/goal-ticks.md` | Long-horizon goals for a coordinator agent: tick cadence, report template, escalation when there is no progress, a "LAST HUMAN DEPENDENCY" note | `docs/` or the coordinator agent's prompt |
 | `automation/bug-repro.md` | An automation that tries every incoming bug report on main with the control skill and posts REPRODUCED / NOT REPRODUCED / FIXED ON MAIN / NEEDS INFO with evidence: trigger, prompt, output format, escalation rule | `docs/` or the automation's instructions |
 | `automation/automerge-policy.md` | Which change classes may auto-merge, required signals, protected paths, revert policy, reviewing on main afterwards; fillable | `docs/automerge-policy.md` |
@@ -120,6 +120,8 @@ If you run agents in cloud VMs, keep `references/cloud-environment.md` and fill 
    ```
 
    (Instead, or as well, it can scan `*.scenario.*` files that declare `covers: [...]`: pass `--scenarios <dir>`.) It fails for an id no scenario covers and that has no `skip: <reason>`, a scenario that covers an unknown id, an id listed twice, and an id that is covered but still marked skip. Skips are printed on success, so they stay visible in CI logs.
+
+   **A manifest someone typed is a claim, not a result.** The script cannot tell a scenario that reached `sidebar-new-note` from one that merely lists it. The honest setup has your verify command write the manifest itself, after the run, listing in each passing scenario's `covers` only the ids that an assertion tagged with that id passed on (a failed scenario lists none), and has the check run after that command. The runnable example does this: its `verify:all` writes `artifacts/verify-coverage.json` in exactly this shape, `verify:reached` compares it with every scenario's declared `covers`, and `node ../templates/ci/check-coverage.mjs --features .agents/skills/verify-app/references/features --manifest artifacts/verify-coverage.json` accepts the same file. The difference: the template script knows only the manifest (it cannot say which declared id went unreached), the example also reads the scenario declarations.
 4. Mention the skill in `AGENTS.md`: any PR that adds, renames or removes a feature, route, shortcut or selector must update the feature map and attach an evidence report.
 
 ### Step 3. Pillar 2: high-quality skills
@@ -436,7 +438,7 @@ Lower-case text longer than two dozen characters is a hint sentence: it says wha
 | The agent asserts a cause without reading the code | `investigate` |
 | The agent asks a human questions that running it would answer | `team-mode` ("asking a human is the slow path") |
 | The agent reaches for a risky API on its own | `are-you-sure-you-need-x` (and lint if it can be banned) |
-| The feature map gradually goes stale | `maintain-verification` and the CI scripts (`ci/check-feature-map.sh`, `ci/check-coverage.mjs`) |
+| The feature map gradually goes stale | `maintain-verification` and the CI scripts (`ci/check-feature-map.sh` checks structure only, not selectors; `ci/check-coverage.mjs` checks the manifest it is given) |
 | You can't tell whether a skill change made it better | `evals/` |
 | Reviewers keep repeating the same rule | `review-comment-to-rule.md` |
 | It is unclear which enforcement layer is missing | `enforcement-layers.md` |

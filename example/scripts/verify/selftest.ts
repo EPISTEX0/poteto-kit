@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process'
 import { loadScenarios } from './load-scenarios'
 
-const expectedFailures = ['editor/edit-title-updates-sidebar', 'cross-cutting/create-rename-find']
 const allScenarios = await loadScenarios()
+const expectedFailures = allScenarios
+  .filter((scenario) => scenario.catchesInjectedBug)
+  .map((scenario) => `${scenario.feature}/${scenario.name}`)
 
 function runVerifyAll(label: string, injectBug: boolean) {
   const env: NodeJS.ProcessEnv = { ...process.env, VERIFY_ARTIFACTS_DIR: `artifacts/selftest-${label}` }
@@ -19,6 +21,9 @@ function runVerifyAll(label: string, injectBug: boolean) {
 }
 
 const problems: string[] = []
+if (expectedFailures.length === 0) {
+  problems.push('no scenario sets catchesInjectedBug: true, so nothing proves that verify can fail')
+}
 
 const buggy = runVerifyAll('bug', true)
 if (buggy.status === 0) {

@@ -13,7 +13,7 @@ A skill library grows past what anyone remembers. This file fixes the vocabulary
 
 | Kind | What it is | Naming | Examples |
 | --- | --- | --- | --- |
-| **Control** (`control-*`) | Drive one product surface for real: launch, click, read state, screenshot, trace. One per surface. Ships a CLI, a feature map and tests | `control-<surface>`, with an area prefix when there are several (`client-control-app`) | `control-web`, `control-desktop`, `control-mobile`, `control-api` |
+| **Control** | Drive one product surface for real: launch, click, read state, screenshot, trace. One per surface. Ships a CLI, a feature map and tests | `verify-app` while you have one surface (the name this kit installs); once there are several, `control-<surface>`, with an area prefix when several teams own one (`client-control-app`) | `verify-app`, or `control-web`, `control-desktop`, `control-mobile`, `control-api` |
 | **Performance** | Split by job: `check` a change for regression, `explore` an unexplained regression, `bisect` to the commit, `trace` to read a trace, `hillclimb` to improve a metric iteratively | `<verb>-<surface>-perf-regression`, `<surface>-trace`, `hillclimb-<surface>` | `check-{{APP_SHORT}}-perf-regression`, `bisect-{{APP_SHORT}}-perf-regression`, `{{APP_SHORT}}-trace`, `hillclimb-{{APP_SHORT}}` |
 | **Challenge** (`are-you-sure-you-need-*`) | Stop an agent that reaches for a risky API or pattern; demand evidence and alternatives | `are-you-sure-you-need-<x>` | `are-you-sure-you-need-raf`, `are-you-sure-you-need-use-effect` |
 | **Best practices** | The conventions of one area, with reasons; read before working there | `<area>-best-practices` | `{{APP_SHORT}}-best-practices`, `service-best-practices` |
@@ -21,7 +21,7 @@ A skill library grows past what anyone remembers. This file fixes the vocabulary
 | **QA and design** | Check the result against design intent and visual quality | `<role>-qa-pass`, `<x>-linter`, `autofix-<x>` | `designer-qa-pass`, `design-implementation-linter` |
 | **Mode** (router) | A router that sets the way of working and sends situations to leaves. Explicit invocation only | `<owner>-mode` | `team-mode` |
 | **Principles** | One rule of judgment per file, cited by decisions. Files inside the router skill, not skills of their own | `<router>/principles/<name>.md` | `team-mode/principles/fix-root-causes.md`, `boundary-discipline.md`, `encode-lessons-in-skills.md` |
-| **Playbooks** | Step-by-step procedures a router or leaf points at. Files inside that skill, not skills of their own | `<skill>/playbooks/<name>.md` | `team-mode/playbooks/prototype.md`, `bake-off.md` |
+| **Playbooks** | Step-by-step procedures a router or leaf points at. Files inside that skill, not skills of their own. This kit ships none; add one when a procedure repeats | `<skill>/playbooks/<name>.md` | `team-mode/playbooks/prototype.md`, `bake-off.md` (yours to write) |
 | **Investigation** | Find the cause of something, with evidence | `investigate`, `investigate-<thing>` | `investigate`, `investigate-reported-issue` |
 
 Rule of thumb: control skills let the agent SEE; challenge, best-practice and principle skills shape what it DECIDES; a router routes between them; evals (`evals/EVAL_PLAYBOOK.md`) tell you whether any of them works.

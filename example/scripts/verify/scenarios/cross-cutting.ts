@@ -7,6 +7,7 @@ export const scenarios: Scenario[] = [
     name: 'create-rename-find',
     description: 'Create a note, rename it, find it through search and see it selected everywhere.',
     covers: ['flow-create-rename-find'],
+    catchesInjectedBug: true,
     async run({ page, step, expect }) {
       const u = ui(page)
       await step('Click "New note"', () => u.newNote.click())
@@ -20,7 +21,9 @@ export const scenarios: Scenario[] = [
       await step('Press Enter', () => page.keyboard.press('Enter'))
       await expect('search palette closed', 0, () => u.searchInput.count())
       await expect('editor shows the renamed note', 'Quarterly plan', () => u.title.inputValue())
-      await expect('sidebar highlights the renamed note', 'Quarterly plan', () => u.selectedRow.innerText())
+      await expect('sidebar highlights the renamed note', 'Quarterly plan', () => u.selectedRow.innerText(), {
+        reaches: 'flow-create-rename-find',
+      })
     },
   },
 ]
