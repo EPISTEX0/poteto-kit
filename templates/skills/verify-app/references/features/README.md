@@ -1,6 +1,6 @@
 <!-- HOW TO USE:
 1. This directory is the feature map: one file per user-facing feature, plus cross-cutting-flows.md. Copy _feature.template.md once per feature, named <feature-id>.md, where <feature-id> equals the directory name under {{FEATURES_DIR}} (default src/features). Keep _feature.template.md in this directory as the copy source: it is the one file in the installed skills that keeps its placeholders (check with `grep -rn "{{" .agents/skills --exclude=_feature.template.md`). With no cross-feature journey yet, cross-cutting-flows.md can be a stub (a heading and an empty `## Flows` section); fill it from this kit's cross-cutting-flows.md when the first real journey exists.
-2. Replace every {{PLACEHOLDER}} in this README (baseline preconditions, conventions). A slot your app has no counterpart for (no feature flags, no manual-only paths): write `none`; with no login, delete the whole signed-in bullet (test account, entitlement, auth automation, fresh-machine login). Then fill the index at the bottom: one line per feature file, grouped by area. Keep the index line format exactly; a CI script parses it (ci/check-feature-map.sh, see skills/maintain-verification/SKILL.md). Sub-feature and flow ids are parsed too, by ci/check-coverage.mjs.
+2. Replace every {{PLACEHOLDER}} in this README (baseline preconditions, conventions). A slot your app has no counterpart for (no feature flags, no manual-only paths): write `none`; with no login, delete the whole signed-in bullet (test account, entitlement, auth automation, fresh-machine login) and the one-session bullet after it. Then fill the index at the bottom: one line per feature file, grouped by area. Keep the index line format exactly; a CI script parses it (ci/check-feature-map.sh, see skills/maintain-verification/SKILL.md). Sub-feature and flow ids are parsed too, by ci/check-coverage.mjs.
 3. Or let the agent draft the first version with skills/create-verification/SKILL.md, then review it yourself: you know what users really do.
 4. Delete this comment block when done.
 -->
@@ -26,6 +26,7 @@ Unless a feature file says otherwise, assume all of these before driving anythin
 - The dev build is running and the health command is green (`{{DOCTOR_COMMAND}}`).
 - Signed in as {{TEST_ACCOUNT}} with access to {{REQUIRED_ENTITLEMENT}}. Automated path: {{AUTH_AUTOMATION}} (for example clone a prepared profile, then restart). On a fresh machine: {{FRESH_MACHINE_LOGIN}}. Real OAuth or SSO is manual.
 - Starting state: {{STARTING_STATE}} (for example "sidebar visible with at least one item").
+- If the backend allows one session per account, runs are serialized (a second login revokes the first), and nobody uses the test account while a run is going (`references/test-account.md`).
 - No modal, settings pane, toast or banner is open. Default view settings ({{DEFAULT_VIEW_SETTINGS}}).
 - Paths that need an entitlement, OS, device or driver you do not have (cloud, remote, native-bound) are unreachable: mark them `skip: <reason>` and say so in the proof (see "Proof and skip reporting").
 
@@ -36,7 +37,7 @@ Unless a feature file says otherwise, assume all of these before driving anythin
 - **Reading versus acting.** Use `eval` (or the equivalent) only to READ state. Do not call application commands through it; that bypasses the user path and proves nothing.
 - **Async and streaming work is non-deterministic.** Poll observable end states (status labels, button enablement, a status attribute) with a timeout. A generic "wait for settle" helper only covers short UI transitions, not network or model output.
 - **Leave the environment alone:** keep developer overlays off, and leave unrelated feature flags untouched. For a gated path, enable only the flag the feature file names, using {{FEATURE_FLAG_COMMAND}}.
-- **Watch the console.** For any flow whose expected result includes "no errors", stream the console ({{CONSOLE_COMMAND}}) while you drive it and report what appeared.
+- **Watch the console.** For any flow whose expected result includes "no errors", stream the console ({{CONSOLE_COMMAND}}) while you drive it and report what appeared. Known noise (for example a 4xx an endpoint returns on every visit) is not ignored: it is a named allowlist entry with a pattern, a reason and the scenarios it applies to, and the report lists each match. Anything not on the list is a finding.
 - **Manual-only paths:** {{MANUAL_ONLY_PATHS}} (typically OS file drops, native menus, opening an external browser, auth dialogs). Unless your tooling supports them, mark the affected ids `skip: <reason>` rather than faking them.
 
 ## Proof and skip reporting

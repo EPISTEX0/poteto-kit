@@ -20,8 +20,13 @@ A good control skill is a *directory*, not a prompt:
 - **Parts:** `SKILL.md`, a CLI, a small library, `references/`, and `test/`. The CLI has a `--help` that lists commands, flags, and examples, and it has its own tests.
 - **The description says when to use it and when not to.** For example: use it to drive a running dev build, take screenshots, click, type, read the accessibility tree, run JS, and check visible state; inside a cloud agent's VM, skip it unless asked. Set the skill to load only when deliberately invoked: Claude Code and Cursor honour `disable-model-invocation: true` in the frontmatter, and Codex uses `policy.allow_implicit_invocation: false` in the skill's `agents/openai.yaml`.
 - **Capabilities:** inspect the DOM, take screenshots, click, type, read the accessibility tree, run JS, profile, throttle CPU/network, stream console or network, and manage isolated parallel instances.
-- **Pick a flow:** detect whether you are in a worktree or the main checkout (in a worktree, `.git` is a file, not a directory). The main checkout uses a fixed control port and a shared profile. In a worktree, every command takes a worktree flag and uses its own derived port and an isolated profile, so parallel agents don't fight over your working session.
-- **Refuse instead of silently attaching.** A connect command run from a worktree without the worktree flag (and without an explicit endpoint) is **refused**, not quietly pointed at the default port, because that would touch your main session and dirty its login.
+- **Pick a flow:** detect whether you are in a worktree or the main checkout (in a worktree, `.git` is a file, not a directory). The main checkout uses a fixed control port and a shared profile. Any other checkout is named: either the CLI lives in each worktree and every command takes a worktree flag, or the CLI runs from the main checkout and takes `--target <checkout>` to drive another checkout or worktree (artifacts land with the CLI; a detached target is labelled by the remote branches that contain its commit). Either way the instance has its own derived port and an isolated profile, so parallel agents don't fight over your working session.
+- **Refuse instead of silently attaching.** A connect command run from a worktree without the worktree flag, `--target` or an explicit endpoint is **refused**, not quietly pointed at the default port, because that would touch your main session and dirty its login. `--target` is an explicit choice, not a fallback; a missing, uninstalled or port-held target is refused too.
+- **The verdict comes from assertions only.** Build, lint and typecheck run as gates and are reported beside the verdict, never inside it. Lint is judged as a delta against the base commit (new problems in the changed files), so a repo with an existing lint backlog can still get a clean PASS. The cheap way needs no second worktree: lint each changed file now and at the base via `git show`, and derive the base total.
+- **The CLI writes the report.** `report.json` is the source of truth; `report.md` is exactly the evidence-report block, so the agent pastes it instead of assembling it by hand. A readable export (PDF in the team's language) is generated from `report.json` too, never typed.
+- **Known console noise is an allowlist, not a mute button.** Each entry has a pattern, a reason and a scenario scope, and the report lists every match; anything else is a finding.
+- **A test account the tool creates.** One dedicated account, registered through the app's own sign-up on a non-production environment, credentials in a user config file outside the repo, never printed; `doctor` reports presence only. Some backends keep one session per account (a second login revokes the first): serialize runs or give each worker its own account.
+- **A `smoke` feature** that only loads the first screen separates a broken harness (smoke fails) from bad credentials or a backend problem (smoke passes, login fails).
 - **`doctor` first when anything looks off.** A read-only command reports the worktree context, who holds the control port, whether the watcher is alive, whether the build is fresh, and whether the required pieces are compiled; it answers "is this instance worth driving?".
 - **Worktree lifecycle:** a setup command (with a watch mode), a command that copies over an already-logged-in profile, restart, info, doctor, and cleanup (remove the worktree). Details in [templates/skills/verify-app/references/worktree-isolation.md](../templates/skills/verify-app/references/worktree-isolation.md).
 - **Environment guard:** setup installs dependencies for the runtime version pinned in the repo; if the version doesn't match, it exits *before* provisioning.
@@ -30,7 +35,9 @@ A good control skill is a *directory*, not a prompt:
 Why these designs make sense:
 
 - **Refuse instead of fall back** keeps evidence trustworthy: evidence taken from the wrong instance (the user's main session) is worse than no evidence, because it looks real. A loud, early failure is cheaper than a silently wrong result.
-- **`doctor` and the environment guard** turn environment faults (wrong runtime, stale build, held port) into a clear message before the agent sinks time into a broken instance.
+- **`doctor` and the environment guard** turn environment faults (wrong runtime, stale build, held port) into a clear message before the agent sinks time into a broken instance. Label expected answers as expected: an unauthenticated probe that gets HTTP 401 means the API is up.
+- **Gates beside the verdict** keep one signal clean. If lint could flip the verdict, a repo with a noisy baseline would never see PASS, and people would stop reading the report; if it is invisible, regressions slip through. Reporting it next to the verdict, as a delta, keeps both honest.
+- **Generated, not typed.** A report an agent assembled by hand can drift from the run; one written by the CLI from the run's data cannot.
 - **Worktree isolation** (derived port, separate profile) is what lets many agents verify in parallel without stepping on each other or on your session (see [08](08-scaling-to-cloud-agents.md)).
 - **A CLI with its own tests** means the skill is verified code, not just text.
 - An evidence report (commands run, output, attached screenshots/traces, a pass/fail conclusion) makes "verified" something you can check again.
@@ -47,7 +54,10 @@ Why these designs make sense:
 8. With multiple parallel agents, follow [templates/skills/verify-app/references/worktree-isolation.md](../templates/skills/verify-app/references/worktree-isolation.md): one derived port and one profile per worktree; if the flag is missing, **refuse**; don't fall back to the default instance.
 9. Add an environment guard (runtime version, whether the build has run) to fail early, before provisioning.
 10. Check the verification skill itself with evals ([05](05-evals.md)) before you rely on it to drop manual review.
-11. Run [example/README.md](../example/README.md) to see one complete verify loop, including the `doctor` command and the self-check that plants a deliberate bug.
+11. Run [example/README.md](../example/README.md) to see one complete verify loop, including the `doctor` command and the self-check that plants a deliberate bug. It does not implement gates, `--target`, `account create` or the evidence-block `report.md`; the templates describe those.
+12. Build on what the team already does. Before writing the CLI, look for their own verification (per-ticket browser scripts, PDF or report builders, an evidence folder). Port their helpers, keep their report format, and replace the numbers they type by hand with data the CLI measures.
+13. To compare with the state before a change, add a throwaway worktree at the merge-base, install, run the same scenario with `--target`, compare, and remove it (recipe B in [templates/skills/verify-app/SKILL.md](../templates/skills/verify-app/SKILL.md)).
+14. Optional: a readable export, rendered from `report.json` and printed to PDF by the browser that drove the run ([templates/skills/verify-app/references/evidence-export.md](../templates/skills/verify-app/references/evidence-export.md)). Provision the login with [templates/skills/verify-app/references/test-account.md](../templates/skills/verify-app/references/test-account.md).
 
 ## Anti-patterns
 
@@ -59,6 +69,10 @@ Why these designs make sense:
 - A control skill that silently falls back to the default instance/port when a flag is missing, so the agent can drive your session by mistake.
 - Several agents sharing one profile and one port; one agent's verification run corrupts another's.
 - A skill CLI with no tests or `--help`; nobody knows whether it still works.
+- Lint or build failures that flip the verdict (or are hidden), so the report is either always red or silent about regressions.
+- Console errors "ignored" in code with no reason and no scope, so real errors hide in the noise.
+- A report or PDF with numbers typed by hand instead of read from the run's data.
+- Credentials copied from an old script, printed in a log, or committed; or two parallel runs sharing one account on a backend that allows one session.
 
 ## Related
 
@@ -67,6 +81,8 @@ Why these designs make sense:
 - [templates/skills/maintain-verification/SKILL.md](../templates/skills/maintain-verification/SKILL.md)
 - [templates/skills/verify-app/references/features/README.md](../templates/skills/verify-app/references/features/README.md)
 - [templates/skills/verify-app/references/worktree-isolation.md](../templates/skills/verify-app/references/worktree-isolation.md)
+- [templates/skills/verify-app/references/test-account.md](../templates/skills/verify-app/references/test-account.md)
+- [templates/skills/verify-app/references/evidence-export.md](../templates/skills/verify-app/references/evidence-export.md)
 - [09 - Other stacks](09-other-stacks.md)
 - [example/README.md](../example/README.md)
 

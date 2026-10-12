@@ -6,12 +6,12 @@ disable-model-invocation: false
 
 <!-- HOW TO USE:
 1. Replace every {{PLACEHOLDER}} (search for "{{"). Delete recipes, Launch rows and driver sections that do not apply to your app type. A slot your app has no counterpart for (no login, no feature flags): write `none`; where a sentence or bullet around it stops making sense (signed-in checks, the shared-profile step in "Pick a flow"), rewrite or delete it.
-2. Keep the references/ directory next to this file: references/features/ (the feature map) is what makes this skill useful on vague reports, references/worktree-isolation.md covers parallel instances, and references/cloud-environment.md covers cloud agent VMs (delete it if you never run there).
+2. Keep the references/ directory next to this file: references/features/ (the feature map) is what makes this skill useful on vague reports, references/worktree-isolation.md covers parallel instances and `--target`, references/test-account.md covers a login (delete it if the app has none), references/evidence-export.md is an optional human-readable export (delete it if nobody asked), and references/cloud-environment.md covers cloud agent VMs (delete it if you never run there).
 3. Install it as .agents/skills/verify-app/ (the canonical location; see the install table in templates/README.md for Claude Code, Cursor and Codex). Keep the folder name equal to `name` above.
 4. Invocation: `disable-model-invocation: false` (a literal, so the frontmatter stays valid YAML) lets the agent load the skill on its own when the description matches. Set it to `true` if you want the skill only on an explicit /verify-app (honoured by Claude Code and Cursor). Codex ignores the key; there, add agents/openai.yaml with `policy: { allow_implicit_invocation: false }` instead.
 5. Or let the agent generate it: run skills/create-verification/SKILL.md first, then edit the result.
 6. A real control skill ships its own small CLI (see "The CLI" below); the template describes the commands to build, and `create-verification` can write it for you.
-7. Worked instance in this kit: example/ has a verify CLI, `npm run verify -- --feature <id> --scenario <name>` (run from example/). Delete this line in the installed copy.
+7. Worked instance in this kit: example/ has a verify CLI, `npm run verify -- --feature <id> --scenario <name>` (run from example/). It shows the core loop, `doctor` and the refusal rule; it does not implement gates, `--target`, `account create` or the evidence-block `report.md` described below (its per-scenario `report.md` is simpler). Delete this line in the installed copy.
 -->
 
 # verify-app: run it for real, then report evidence
@@ -39,7 +39,10 @@ What this skill can do through its CLI (`{{CLI_NAME}} --help` lists the exact co
 - profile: performance traces, CPU and heap data
 - throttle CPU and network to expose slow-path bugs
 - stream console and network output while you drive a flow
-- manage parallel instances isolated per worktree (see `references/worktree-isolation.md`)
+- manage parallel instances isolated per worktree, and verify another checkout with `--target <path>` (see `references/worktree-isolation.md`)
+- run the build, lint and typecheck as gates beside the scenarios (see "Gates and the verdict")
+- write `report.json` and a `report.md` that is the evidence report below, ready to paste
+- create the one dedicated test account where the app has a login (see `references/test-account.md`)
 - run `doctor`, a read-only health check (see below)
 
 Adapt the list to the surface you drive (browser, desktop shell, simulator, terminal); delete what you cannot support.
@@ -65,17 +68,18 @@ If either guard stops you, report BLOCKED with the reason. Skills that cost real
 - Required tools: {{REQUIRED_TOOLS}} (for example Playwright browsers, Chrome with `--remote-debugging-port`, Xcode simulator and `xcrun simctl`, Android SDK with `adb`, Maestro, `curl`).
 - Artifacts directory: `{{ARTIFACTS_DIR}}` (default suggestion: `artifacts/verify/<timestamp>/`). Create it before each run. Never overwrite a previous run.
 - Test data / login: {{TEST_DATA_OR_LOGIN}}
+- Credentials (delete this bullet if the app has no login): in `{{CREDENTIALS_FILE}}`, a user config file outside the repo with mode 600, or in the environment. Never printed, copied into the repo or pasted into a report. Provisioning the account, and a backend that allows one session per account: `references/test-account.md`.
 
 If a prerequisite is missing, install it if you can. If you cannot, follow the Failure policy below.
 
 ## Pick a flow
 
-Decide first which instance you are going to drive; do not guess.
+Decide first which instance you are going to drive; do not guess. The target is always named or unambiguous, never inferred.
 
 1. Detect where you are: in a git worktree, `.git` is a file; in the main checkout it is a directory.
-2. **Main checkout:** launch the dev build on the default port `{{DEFAULT_PORT}}` with the shared profile (`{{DEFAULT_PROFILE_DIR}}`). This is the human's session; do not fight it.
-3. **Worktree or parallel agent:** every command takes `--worktree`, which derives a port from the worktree path and uses an isolated profile, so parallel agents never collide with each other or with the human. Details and setup commands: `references/worktree-isolation.md`.
-4. **Refuse when ambiguous.** From a worktree, a command with neither `--worktree` nor an explicit `--cdp <port>` must fail with a message that names the fix. It must NOT silently attach to the default port: that would drive (and possibly corrupt) someone else's running app and then report on the wrong build.
+2. **Main checkout, no selector:** drive this checkout. Launch the dev build on the default port `{{DEFAULT_PORT}}` with the shared profile (`{{DEFAULT_PROFILE_DIR}}`). This is the human's session; do not fight it.
+3. **Another checkout or worktree:** name it, in one of two shapes (`references/worktree-isolation.md`). Either the CLI lives in that worktree and every command takes `--worktree`, or the CLI runs from the main checkout and takes `--target <checkout>`. Both derive the port from the path and isolate the profile, so parallel agents never collide with each other or with the human. With `--target`, artifacts land in the checkout that holds the CLI, and the report labels the target (a detached one by the remote branch(es) that contain its commit, because a detached HEAD has no branch name).
+4. **Refuse when ambiguous.** From a worktree, a command with none of `--worktree`, `--target` or an explicit `--cdp <port>` must fail with a message that names the fix. It must NOT silently attach to the default port: that would drive (and possibly corrupt) someone else's running app and then report on the wrong build. The same holds for a `--target` that is missing, is not installed or has its derived port held: refuse and say what to do; never install for it or pick another port.
 
 ## Run `doctor` first
 
@@ -85,8 +89,13 @@ When anything looks off, and before trusting any run, execute `{{CLI_NAME}} doct
 - which process owns the port (is it yours, someone else's, or nothing?)
 - whether the build watcher is alive and the build is fresh (newer than the last source change)
 - whether the environment check passes (tool versions match the runtime pin, build artifacts are fresh, the profile exists and is signed in, a display or headless browser is available)
+- whether test credentials are present, as presence only (and a masked account name at most), never the values
+- for a backend that allows one session per account: which policy applies, a run lock that serializes runs or one account per parallel worker
+- for a backend probe without a token: an HTTP 401 means the API is up, so label it expected in the output (for example "answers 401 (expected: unauthenticated probe)") instead of reading it as a fault
 
 If doctor reports stale or foreign state, fix that (restart, rebuild, set up the worktree) before driving. Put the doctor summary in the evidence report.
+
+When `doctor` passes but a full run is BLOCKED at login, run the `smoke` feature next: a scenario that only loads the first screen, with no login. If smoke fails, the harness is broken (CLI, server or browser). If smoke passes and login fails, the cause is the credentials or the backend. `smoke` checks the harness and is not a user feature, so it needs no feature file and covers no ids.
 
 ## The CLI
 
@@ -100,7 +109,7 @@ scripts/verify/              helpers (connect, locate instance, trace, doctor) a
   references/                features/ (feature map), worktree-isolation.md, recipes
 ```
 
-Test the CLI like any code: the refusal rule, port derivation and doctor output are exactly what breaks silently. An agent can write most of the CLI for you from this description; what matters is the behavior contract above.
+Test the CLI like any code: the refusal rule, port derivation, doctor output, the verdict and exit-code rules and the redaction of credentials are exactly what breaks silently. An agent can write most of the CLI for you from this description; what matters is the behavior contract above.
 
 ## Launch
 
@@ -142,7 +151,11 @@ Never guess where a feature lives in the UI. Open `references/features/README.md
 2. Confirm the expected behavior is visible: screenshot of the end state, no new console errors, no failed requests.
 3. Run one neighbouring scenario to check for regressions in the same feature (its Sub-features list and Driving it gotchas).
 4. If a worked scenario exists as a script, run it (`{{CLI_NAME}} --help` lists them).
-5. Compare against the state before the fix when possible (same steps on the base commit); a fix that was never seen failing is unproven.
+5. Compare against the state before the fix when possible (same steps on the base commit); a fix that was never seen failing is unproven. Recipe, run from the checkout that holds the CLI, with the worktree outside the repo and removed afterwards:
+   1. `git worktree add --detach <dir> $(git merge-base HEAD origin/{{DEFAULT_BRANCH}})`
+   2. `{{INSTALL_COMMAND}}` inside `<dir>` (the CLI refuses a target that is not installed and never installs for you)
+   3. `{{CLI_NAME}} --feature <id> --target <dir>`, then the same command against the checkout with the change; compare the two reports (the base is expected to FAIL where the fix matters)
+   4. `git worktree remove --force <dir>`
 
 ### C. Measure performance
 
@@ -167,7 +180,7 @@ End every run with a report in this exact shape. Put it in the PR description or
 ```
 ## Verification report
 - Target: <feature-id> / <scenario or bug report summary>
-- Build: commit <sha>, <clean|dirty>, app launched with `<exact command>`
+- Build: commit <sha> (<branch, or the remote branch(es) containing it if detached>), <clean|dirty>, app launched with `<exact command>`; gates: build <ok|regressed|not measured>, lint <ok|regressed|not measured> (<delta against base <sha>>)
 - Environment: <OS, browser/simulator version, viewport or device>
 - Steps run: 1. ... 2. ... (what you actually did, from app start)
 - Coverage: <feature file; entry points, modes, gated variants and success/cancel/error/empty/persistence paths exercised, each with its final observable state; paths NOT reached, with the blocker and the closest real path covered; repeat every `skip: <reason>` from the feature file>
@@ -176,15 +189,18 @@ End every run with a report in this exact shape. Put it in the PR description or
 - Observed: <what happened, facts only>
 - Verdict: PASS | FAIL | REPRODUCED | NOT REPRODUCED | BLOCKED
 - Artifacts: <path> (screenshot), <path> (console log), <path> (trace, or "not measured"), <path> (heap snapshot, or "not measured")
-- Console errors / failed requests: <count and the first few, or "none observed">
+- Console errors / failed requests: <count of findings and the first few, or "none observed">; known noise matched: <pattern and reason, or "none">
 - Perf: "not measured", or long tasks (>50 ms, Long Tasks API): <n>, longest: <ms>; frames over the 16.7 ms budget: <n> of <total>; before/after: <a> / <b>
 - Not verified: <anything you did not check and why>
 ```
 
 Rules for the report:
 
+- **Gates and the verdict.** The verdict and the exit code come only from the scenarios' assertions. Gates (build, lint, typecheck) never change them; they are reported beside the verdict, in the Build line. A PASS with a `regressed` gate is a PASS of the feature and a failed gate: say both, and do not call the change done. Judge lint as a delta against the base, not as a raw count, because a repo with an existing lint backlog fails raw lint for reasons that are not yours: `ok` when no changed file got a new problem, `regressed` (list file, line and rule) when one did, `not measured` when no base exists. The base is the merge-base with `origin/{{DEFAULT_BRANCH}}`. No second worktree is needed: lint every changed file as it is now and as it was at the base (`git show <base>:<path>`, with the target's own lint config), then derive the base total as the whole-repo count now, minus the changed files now, plus those files at the base.
 - **Verdict from the assertion.** The scenario asserts the expected behaviour, what should happen if the app is right. For a bug report (recipe A), that assertion failing means REPRODUCED and passing means NOT REPRODUCED. For a change (recipe B), failing means FAIL and passing means PASS. If the app never ran, or the CLI refused to start, the verdict is BLOCKED, whatever the exit code.
 - **CLI exit codes** (suggested): 0 every assertion passed; 1 a step or assertion failed (read the output: a crash before the first assertion is BLOCKED, not FAIL or REPRODUCED); 2 usage error; 3 refused to start for an environment reason (ambiguous target, port held by another process; use further numbers for further refusals). `doctor` exits 0 when healthy and 1 when not ready.
+- **The `report.md` is this block.** The CLI writes `report.md` as exactly the block above, field for field in this order (a checks table may follow), and `report.json` as the source of truth that holds every number and verdict. Paste `report.md` as it is and add only what you observed outside the CLI (for example a comparison with the base); never rebuild the block by hand, and never type a number the CLI already wrote. For a reader who will not open Markdown, `references/evidence-export.md` is an optional recipe for a PDF built from `report.json`.
+- **Expected console noise** is a named allowlist, never a silent ignore: each entry is a pattern with a reason and the scenarios it applies to (for example a known 4xx an endpoint returns on every visit). A match is listed in the report with its reason; anything else in the console or among failed requests is a finding and fails the scenario. Add an entry only after you have shown the noise is not caused by your change.
 - A field that does not apply is written "not measured", never dropped or left blank. This covers Perf, the trace and the heap snapshot whenever you did not take them. Traces are large (about 2 MB per scenario in this kit's example): take one for a performance question or a failing run, not for every passing run.
 - Every claim in Observed points at an artifact path or a pasted log line.
 - Separate what you observed from what you infer. Inference goes under its own label.

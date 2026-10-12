@@ -22,6 +22,24 @@ Why: the human's session, and every parallel agent, must be able to run and driv
 
 From a worktree, a command that carries neither `--worktree` nor an explicit port must exit with an error that says what to pass. It must never quietly use the default port: the default instance is somebody else's session. The same rule applies to any ambiguous target (two instances match, port owner is a different checkout): stop and say which flag disambiguates. A fallback here turns a wrong target into a confident wrong report.
 
+## Two shapes, one rule: `--worktree` or `--target`
+
+The rule is the same in both: the instance you drive is named, never guessed. They differ in where the CLI lives.
+
+| | `--worktree` | `--target <checkout>` |
+| --- | --- | --- |
+| The CLI is | in each worktree (every worktree has its own copy and its own build watcher) | in the main checkout only; it drives another checkout or worktree |
+| Fits | apps with a fixed dev port and a persistent signed-in profile (desktop, Electron) | apps the CLI can start itself from a path (a web dev server, a simulator build) |
+| Port | derived from the worktree path | derived from the target path |
+| Artifacts | in the worktree | in the checkout that holds the CLI, so one place collects every run |
+| Without the flag | in a worktree: refuse | in a linked worktree: refuse and say `--target .` verifies this one; in the main checkout: the main checkout is the target |
+
+`--target` is an explicit choice, not a fallback, so it does not break the refusal rule. It adds its own refusals: the path is not a directory, the target is not installed (the CLI never installs for it), or the derived port is held (never replaced by another port). Never touch ports or browsers the developer is using: list them as reserved and skip them in the derivation.
+
+A detached target (a worktree on a commit) has no branch name. Label it in `doctor` and in the report by the remote branch(es) that point at its commit, falling back to those that contain it, for example `origin/some-branch @ <short sha>`, and say so when no remote branch has it.
+
+To compare behavior before and after a change, use a throwaway worktree at the base and `--target`; the recipe is in `SKILL.md` (recipe B).
+
 ## Quick start
 
 Typical commands (rename to match your CLI):
