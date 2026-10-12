@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { margin: 0; font-family: system-ui, sans-serif; color: #1c1c1e; background: #fafaf8; }
+.shell { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid #e2e2dc; }
+.app-title { margin: 0; font-size: 16px; flex: 1; }
+.search-button { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid #c9c9c0; border-radius: 6px; background: #fff; font: inherit; cursor: pointer; }
+.search-button kbd { font-size: 11px; color: #6b6b66; }
+.workspace { display: grid; grid-template-columns: 260px 1fr; min-height: 0; }
+.sidebar { border-right: 1px solid #e2e2dc; padding: 12px; background: #f1f1ec; overflow-y: auto; }
+.new-note { width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #c9c9c0; border-radius: 6px; background: #fff; cursor: pointer; }
+.note-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.note-item { width: 100%; text-align: left; padding: 8px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; font: inherit; }
+.note-item[aria-current='true'] { background: #dcdcd2; font-weight: 600; }
+.editor { display: flex; flex-direction: column; padding: 24px; gap: 12px; }
+.editor-title { font: inherit; font-size: 24px; font-weight: 600; border: 0; border-bottom: 1px solid #e2e2dc; padding: 4px 0; background: transparent; }
+.editor-body { flex: 1; font: inherit; border: 0; resize: none; background: transparent; }
+.editor-title:focus, .editor-body:focus { outline: none; }
+.search-overlay { position: fixed; top: 15vh; left: 50%; transform: translateX(-50%); width: 420px; background: #fff; border: 1px solid #c9c9c0; border-radius: 10px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18); padding: 8px; }
+.search-input { width: 100%; font: inherit; padding: 8px; border: 0; border-bottom: 1px solid #e2e2dc; outline: none; }
+.search-results { list-style: none; margin: 0; padding: 4px 0 0; }
+.search-result { width: 100%; text-align: left; padding: 8px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; font: inherit; }
+.search-result[aria-selected='true'] { background: #e8e8e0; }
+.slot-left, .slot-main { display: flex; flex-direction: column; min-height: 0; }
+.slot-left > .sidebar, .slot-main > .editor { flex: 1; }

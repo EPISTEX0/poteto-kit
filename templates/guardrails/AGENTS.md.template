@@ -1,0 +1,98 @@
+<!-- HOW TO USE:
+1. Copy to AGENTS.md at the repo root. Cursor and Codex read AGENTS.md directly. Claude Code reads AGENTS.md only when no CLAUDE.md exists; otherwise add a CLAUDE.md that contains the single line `@AGENTS.md` (see "Tool notes" at the bottom, keep it).
+2. Replace every {{PLACEHOLDER}}. Delete sections that do not fit, but keep "Banned patterns" with a reason for each: a ban without a reason gets argued around, a ban with a reason gets understood.
+3. Every rule here is SOFT (an agent can forget it). For each rule, also ask "can a compiler, lint rule or CI script enforce it?" (see guardrails/review-comment-to-rule.md) and put the enforcing command in the "Enforced by" column.
+4. Keep it short enough to be read in full on every task. Move long procedures into skills and link them.
+5. Delete the "Working mode" section if you do not install team-mode. Delete this comment block when done.
+-->
+
+# AGENTS.md: {{PROJECT_NAME}}
+
+{{PROJECT_ONE_LINE}}
+
+## Working mode
+
+New task? If a playbook matches or the work needs rigor, read `{{SKILLS_DIR}}/team-mode/SKILL.md` and apply it. Casual turn, or the user opts out: do not.
+
+## Gate: run before every PR
+
+```
+{{GATE_COMMAND}}
+```
+
+This must pass, locally, before you open or update a PR. It runs: {{GATE_CONTENTS}} (for example typecheck, lint with the custom rules below, import-boundary check, feature-map check, unit tests). Do not weaken, skip or add ignore entries to make it pass; if a rule is wrong, change the rule in its own PR and say why.
+
+## Architecture map
+
+| Path | What lives here | May import from |
+| --- | --- | --- |
+| `{{FEATURES_DIR}}/<feature-id>/` | One directory per feature: UI, state, logic, tests, everything for that feature | `{{SHARED_DIR}}`, public surface of other features only |
+| `{{SHARED_DIR}}/` | Code used by two or more features | nothing from features |
+| `{{PROCESS_A_DIR}}/` (for example `src/main/`) | {{PROCESS_A_ROLE}} (for example main process, no UI) | `{{SHARED_DIR}}` only; never `{{PROCESS_B_DIR}}` |
+| `{{PROCESS_B_DIR}}/` (for example `src/renderer/`) | {{PROCESS_B_ROLE}} (for example UI, must stay within the 16.7 ms frame budget) | `{{SHARED_DIR}}` only; never `{{PROCESS_A_DIR}}` |
+| `{{SKILLS_DIR}}/` | Agent skills (verify-app, investigate, ...) | n/a |
+
+Add rows for entry points, cards, plugins or whatever the nouns of your framework are.
+
+Why the structure is like this, and the rules behind it: `{{ARCHITECTURE_CONTRACT_PATH}}` (see guardrails/architecture-contract.md). Skill library map: `{{SKILLS_DIR}}/CATALOG.md`.
+
+## The shortest path is the best path
+
+Agents take shortcuts; make the shortcut the correct way. Follow existing conventions exactly, copy the nearest existing example, and do not invent a new structure.
+
+- **A feature lives in one directory.** All code that contributes to a feature (components, hooks, state, styles, tests, fixtures) is colocated in `{{FEATURES_DIR}}/<feature-id>/`. Most work happens inside a single feature directory. If you must touch several, say why in the PR.
+- **Add a feature:** {{ADD_FEATURE_STEPS}} (for example: copy `{{FEATURES_DIR}}/_template/` to `{{FEATURES_DIR}}/<feature-id>/`, add its reserved file `{{ENTRYPOINT_FILE}}`, add `{{FEATURE_MAP_DIR}}/<feature-id>.md` and its line in the index there, add stable selectors for its elements). There is no registry to edit: features are discovered from their reserved files, so adding the files is the whole change.
+- **Add an entry point** (route, command, menu item, shortcut): {{ADD_ENTRY_POINT_STEPS}}.
+- **Add a card / widget / plugin** (the repeated noun of your app): {{ADD_CARD_STEPS}}.
+- **Name things** like the neighbouring code: {{NAMING_CONVENTIONS}}.
+- If the convention makes your task hard, stop and report that; do not route around it.
+
+## Banned patterns (and why)
+
+| Pattern | Why it is banned | Do this instead | Enforced by |
+| --- | --- | --- | --- |
+| `useEffect` (and equivalents of "run side effects after render") | The biggest foot-gun in React: hidden dependencies, double runs, races, stale closures, effects that sync state that should be derived | Derive values during render; handle events in handlers; use {{DATA_FETCHING_APPROACH}} for data; external subscriptions via {{SUBSCRIBE_HELPER}} | Lint rule `{{NO_USE_EFFECT_RULE}}` in `{{GATE_COMMAND}}` |
+| Code comments that narrate history or the conversation ("per review...", "the reviewer said never...", "changed from X to Y", "TODO from earlier") | Agents write them very often; they describe a moment that is not true of the code, go stale at once, and turn a one-off remark into an apparent permanent rule. History belongs in the commit and the PR | Make the code self-explanatory by naming and structure. Comments allowed only for: {{ALLOWED_COMMENT_KINDS}} (for example non-obvious why of a constraint, license headers) | Lint/CI script `{{NO_NARRATING_COMMENTS_CHECK}}` |
+| Importing across process boundaries (`{{PROCESS_B_DIR}}` importing from `{{PROCESS_A_DIR}}` or the reverse) | Heavy or IO-bound code pulled into the renderer competes for the 16.7 ms frame budget: frames over budget, long tasks (>50 ms), jank. It regresses silently and every merged PR can do it | Communicate through the typed IPC/API in `{{IPC_DIR}}`; put shared pure code in `{{SHARED_DIR}}` | Import-boundary check `{{IMPORT_BOUNDARY_CHECK}}` (dependency graph) in CI |
+| A feature directory with no feature-map file and index line | Agents cannot find or verify features that are not in the map | Add `{{FEATURE_MAP_DIR}}/<feature-id>.md` and the index line in the same PR | `{{FEATURE_MAP_CHECK}}` in CI |
+| {{BANNED_PATTERN_4}} | {{WHY_4}} | {{INSTEAD_4}} | {{ENFORCED_BY_4}} |
+| {{BANNED_PATTERN_5}} | {{WHY_5}} | {{INSTEAD_5}} | {{ENFORCED_BY_5}} |
+
+Rule of thumb: when you observe an agent (or a reviewer) hitting the same problem twice, a new row here is the minimum; a lint rule or CI check is the goal.
+
+## Verification requirement
+
+You are not done when the code is written; you are done when you have run the real app and have evidence.
+
+- Use the `verify-app` skill ({{SKILLS_DIR}}/verify-app/SKILL.md): run the app, drive the changed feature using its feature file in `{{FEATURE_MAP_DIR}}` (every entry point and path it lists that your change can affect), capture screenshot and console output, and for performance-relevant changes a trace, reporting long tasks (>50 ms, Long Tasks API) and frames over the 16.7 ms budget as separate numbers.
+- Put the evidence report in the PR description (or link it). A PR that changes behavior and has no evidence report will be sent back.
+- If you cannot run the app, say BLOCKED and why. Never write "should work".
+- When you add, rename or remove a feature, route, shortcut or test id, update `{{FEATURE_MAP_DIR}}` (skill: `maintain-verification`).
+- When asked to find a cause, use the `investigate` skill: no root cause without `file:line` and a reproduction.
+
+## Pull request policy
+
+- **Atomic PRs.** One concern per PR, described in one sentence. Mixed refactor + behavior change gets split. Prefer several small, revertible PRs to one large one; git history is a record of intent and makes reverting a bug cheap.
+- **No hard size cap.** A deletion-heavy or mechanical PR can be large. If it is large, it still has one concern and a clear description.
+- Title: {{PR_TITLE_FORMAT}}. Body: what changed, why, how it was verified (evidence report), risks.
+- Do not commit generated artifacts, traces or screenshots unless {{ARTIFACT_POLICY}}.
+- Do not merge or enable auto-merge yourself unless {{AUTOMERGE_POLICY}}.
+
+## Review
+
+Automated review ({{AI_REVIEW_TOOL}}) and humans review against this file. A human review comment that states a rule means the rule should become a lint rule, CI check or type, not just a comment; see `guardrails/review-comment-to-rule.md`.
+
+## Commands
+
+| Task | Command |
+| --- | --- |
+| Install | `{{INSTALL_COMMAND}}` |
+| Run the app | `{{DEV_COMMAND}}` |
+| Unit tests | `{{TEST_COMMAND}}` |
+| Gate (all checks) | `{{GATE_COMMAND}}` |
+| Verify a feature | `{{VERIFY_COMMAND}}` |
+
+## Tool notes
+
+- This file is read directly by Cursor and Codex. Claude Code reads `CLAUDE.md` (and reads `AGENTS.md` only when no `CLAUDE.md` exists), so keep a `CLAUDE.md` at the repo root that contains `@AGENTS.md`, plus any Claude-only notes below it. Edit the rules here, never in two places.
+- Skills live in `{{SKILLS_DIR}}` (canonical: `.agents/skills/<name>/SKILL.md`, flat). `.claude/skills` is a symlink to it for Claude Code.

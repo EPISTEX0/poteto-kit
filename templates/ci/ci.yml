@@ -1,0 +1,58 @@
+# HOW TO USE:
+# 1. Copy to .github/workflows/ci.yml. Replace every {{PLACEHOLDER}} below, then delete this comment block.
+#      {{WORKING_DIR}}      directory that holds package.json (use "." for the repo root)
+#      {{NODE_VERSION}}     the Node version your runtime pin names (for example the value in .nvmrc)
+#      {{INSTALL_COMMAND}}  a clean, lockfile-exact install (for example "npm ci")
+#      {{GATE_COMMAND}}     the single command that runs every gate (lint, types, boundaries,
+#                           feature-map check, coverage check, tests, verification scenarios)
+#      {{ARTIFACTS_PATH}}   where your verification run writes artifacts (screenshots, console logs,
+#                           traces); uploaded only when the gate fails
+# 2. Add the two gate scripts of this kit to {{GATE_COMMAND}}, so CI enforces them:
+#      ci/check-feature-map.sh   every feature directory has a feature-map file and an index line
+#      ci/check-coverage.mjs     every entry point in the map is covered by a scenario or marked skip
+#    Wire them as package scripts (for example check:feature-map and check:coverage) and call those
+#    from the gate. Keep the gate a single command, so local runs and CI run exactly the same thing.
+# 3. The browser-install step is for apps whose verification drives a browser (Playwright). Delete it
+#    for other app types. If your verification needs other system tools (an emulator, Xvfb), install
+#    them in this job in the same way.
+# 4. Not Node? Replace the setup-node step with your toolchain's setup action; the rest is unchanged.
+# 5. Prove it is a real gate: break a rule on a scratch branch and watch this job go red.
+name: gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: {{WORKING_DIR}}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: {{NODE_VERSION}}
+          cache: npm
+          cache-dependency-path: {{WORKING_DIR}}/package-lock.json
+
+      - run: {{INSTALL_COMMAND}}
+
+      # Optional: only if verification drives a browser. Delete otherwise.
+      - name: Install browser for verification
+        run: npx playwright-core install --with-deps chromium
+
+      - name: Gate
+        run: {{GATE_COMMAND}}
+
+      - name: Upload verification artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-artifacts
+          path: {{ARTIFACTS_PATH}}
+          if-no-files-found: ignore

@@ -1,0 +1,44 @@
+# CI for the runnable example in example/. templates/ci/ci.yml is the generic,
+# adoptable version of this workflow; copy that one into your own repo.
+name: example
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: example
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: example/package-lock.json
+
+      - run: npm ci
+
+      - name: Install the Chromium that matches the installed playwright-core
+        run: npx playwright-core install --with-deps chromium
+
+      - name: Doctor (read-only health report)
+        run: npm run verify -- doctor
+
+      - run: npm run gate
+
+      - name: Upload verification artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-verify-artifacts
+          path: example/artifacts/
+          if-no-files-found: ignore
