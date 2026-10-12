@@ -15,7 +15,7 @@ Stop at the first rung that works.
 
 1. **Eliminate the class.** Change types, architecture or API design so the mistake cannot be expressed. Example: a single typed IPC module so there is nothing to import across processes; a `<Feature>` factory that requires a feature id that has a feature-map file.
 2. **Compiler / type check.** Make the type system or compiler diagnostics reject it (strict flags, branded types, exhaustive checks, borrow checker in Rust-like stacks). Hard: the build fails.
-3. **Lint rule.** A custom or off-the-shelf lint rule for a bad pattern, set to error. Hard: `{{GATE_COMMAND}}` fails.
+3. **Lint rule.** A custom or off-the-shelf lint rule for a bad pattern, set to error. Hard: `{{GATE_COMMAND}}` fails. A lint rule can be bypassed by an inline disable comment unless the config forbids those: in ESLint set `linterOptions.noInlineConfig: true` (this kit's `example/eslint.config.js` does; a `// eslint-disable` then only adds a warning and the rule still errors). In Rust use `forbid` instead of `deny`, because `#[allow]` cannot lower a forbidden lint. For any other linter, find its switch before you trust the rule.
 4. **CI script.** A script over files, the dependency graph or the diff (import boundaries, forbidden strings, map-vs-directories). Hard.
 5. **Test.** A test that fails when the invariant breaks (architecture test, snapshot, perf budget test). Hard if run in CI.
 6. **Soft rule.** A line in AGENTS.md, a skill, or an AI review bot prompt. Soft: the agent can forget, and the reviewer may not apply it consistently. Use only when 1-5 are impossible (taste, judgment, design intent), and still layer it on top of a hard rule where one exists.

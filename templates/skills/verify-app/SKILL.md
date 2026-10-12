@@ -5,7 +5,7 @@ disable-model-invocation: false
 ---
 
 <!-- HOW TO USE:
-1. Replace every {{PLACEHOLDER}} (search for "{{"). Delete recipes, Launch rows and driver sections that do not apply to your app type.
+1. Replace every {{PLACEHOLDER}} (search for "{{"). Delete recipes, Launch rows and driver sections that do not apply to your app type. A slot your app has no counterpart for (no login, no feature flags): write `none`; where a sentence or bullet around it stops making sense (signed-in checks, the shared-profile step in "Pick a flow"), rewrite or delete it.
 2. Keep the references/ directory next to this file: references/features/ (the feature map) is what makes this skill useful on vague reports, references/worktree-isolation.md covers parallel instances, and references/cloud-environment.md covers cloud agent VMs (delete it if you never run there).
 3. Install it as .agents/skills/verify-app/ (the canonical location; see the install table in templates/README.md for Claude Code, Cursor and Codex). Keep the folder name equal to `name` above.
 4. Invocation: `disable-model-invocation: false` (a literal, so the frontmatter stays valid YAML) lets the agent load the skill on its own when the description matches. Set it to `true` if you want the skill only on an explicit /verify-app (honoured by Claude Code and Cursor). Codex ignores the key; there, add agents/openai.yaml with `policy: { allow_implicit_invocation: false }` instead.
@@ -90,15 +90,14 @@ If doctor reports stale or foreign state, fix that (restart, rebuild, set up the
 
 ## The CLI
 
-A control skill is code plus markdown. Ship the code with the skill:
+A control skill is code plus markdown. Keep the code in the repo beside its other scripts, not in the skill folder, and have the skill name it:
 
 ```
-verify-app/
+{{CLI_FILE}}                 the CLI entry point (suggested: scripts/verify/cli.ts); `--help` lists every command
+scripts/verify/              helpers (connect, locate instance, trace, doctor) and tests for the CLI itself (arg parsing, port derivation, refusal, doctor output)
+.agents/skills/verify-app/
   SKILL.md
-  {{CLI_FILE}}        the CLI entry point; `--help` lists every command
-  lib/                helpers (connect, locate instance, trace, doctor)
-  references/         features/ (feature map), worktree-isolation.md, recipes
-  test/               tests for the CLI itself (arg parsing, port derivation, refusal, doctor output)
+  references/                features/ (feature map), worktree-isolation.md, recipes
 ```
 
 Test the CLI like any code: the refusal rule, port derivation and doctor output are exactly what breaks silently. An agent can write most of the CLI for you from this description; what matters is the behavior contract above.
@@ -176,14 +175,17 @@ End every run with a report in this exact shape. Put it in the PR description or
 - Expected: <what should happen>
 - Observed: <what happened, facts only>
 - Verdict: PASS | FAIL | REPRODUCED | NOT REPRODUCED | BLOCKED
-- Artifacts: <path> (screenshot), <path> (console log), <path> (trace), <path> (heap snapshot, if relevant)
+- Artifacts: <path> (screenshot), <path> (console log), <path> (trace, or "not measured"), <path> (heap snapshot, or "not measured")
 - Console errors / failed requests: <count and the first few, or "none observed">
-- Perf (if measured): long tasks (>50 ms, Long Tasks API): <n>, longest: <ms>; frames over the 16.7 ms budget: <n> of <total>; before/after: <a> / <b>
+- Perf: "not measured", or long tasks (>50 ms, Long Tasks API): <n>, longest: <ms>; frames over the 16.7 ms budget: <n> of <total>; before/after: <a> / <b>
 - Not verified: <anything you did not check and why>
 ```
 
 Rules for the report:
 
+- **Verdict from the assertion.** The scenario asserts the expected behaviour, what should happen if the app is right. For a bug report (recipe A), that assertion failing means REPRODUCED and passing means NOT REPRODUCED. For a change (recipe B), failing means FAIL and passing means PASS. If the app never ran, or the CLI refused to start, the verdict is BLOCKED, whatever the exit code.
+- **CLI exit codes** (suggested): 0 every assertion passed; 1 a step or assertion failed (read the output: a crash before the first assertion is BLOCKED, not FAIL or REPRODUCED); 2 usage error; 3 refused to start for an environment reason (ambiguous target, port held by another process; use further numbers for further refusals). `doctor` exits 0 when healthy and 1 when not ready.
+- A field that does not apply is written "not measured", never dropped or left blank. This covers Perf, the trace and the heap snapshot whenever you did not take them. Traces are large (about 2 MB per scenario in this kit's example): take one for a performance question or a failing run, not for every passing run.
 - Every claim in Observed points at an artifact path or a pasted log line.
 - Separate what you observed from what you infer. Inference goes under its own label.
 - "Should work", "looks correct", "tests pass" are not Observed. Tests passing is a separate line item.

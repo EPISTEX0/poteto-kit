@@ -4,7 +4,7 @@ description: Bootstrap verification for this repo. Explore the codebase with par
 ---
 
 <!-- HOW TO USE:
-1. Install this folder next to your other skills (.agents/skills/create-verification/; see the install table in templates/README.md) together with the verify-app/ templates (SKILL.md and the references/ directory with features/, worktree-isolation.md and cloud-environment.md), which this skill fills in.
+1. Install this folder next to your other skills (.agents/skills/create-verification/; see the install table in templates/README.md) together with the verify-app/ templates (SKILL.md and references/features/), which this skill fills in. Add references/worktree-isolation.md only if several instances run in parallel, and references/cloud-environment.md only when you scale to cloud agents.
 2. Ask your agent: "Use the create-verification skill for this repo." Replace {{APP_NAME}}, {{SKILLS_DIR}} (where your skills live; default .agents/skills), {{FEATURES_DIR}} (default src/features) and {{GATE_COMMAND}} below. Those four are the only placeholders in this file's body.
 3. Review the generated feature map yourself: you are the person who knows what users actually do. Fix wrong feature files, then commit.
 4. After this, switch to skills/maintain-verification/SKILL.md to keep the map in sync.
@@ -15,7 +15,7 @@ description: Bootstrap verification for this repo. Explore the codebase with par
 
 Goal: an agent that can start {{APP_NAME}}, get to any feature a user could mention, drive it, and bring back evidence, without a human explaining the UI. The code of the control skill is the boring part; the feature map is what makes it useful. This skill builds both from the repo, then proves them.
 
-Finish line: `{{SKILLS_DIR}}/verify-app/SKILL.md` and the directory `{{SKILLS_DIR}}/verify-app/references/features/` (a `README.md` with baseline, conventions and index, one `<feature-id>.md` per feature, `cross-cutting-flows.md`) exist with no unfilled double-brace placeholders left, every feature has a file with working steps and selectors, and 2-3 features were verified end to end with evidence reports.
+Finish line: `{{SKILLS_DIR}}/verify-app/SKILL.md` and the directory `{{SKILLS_DIR}}/verify-app/references/features/` (a `README.md` with baseline, conventions and index, one `<feature-id>.md` per feature, `cross-cutting-flows.md`) exist with no unfilled double-brace placeholders left (`_feature.template.md` is the copy source and keeps its placeholders on purpose), every feature has a file with working steps and selectors, and 2-3 features were verified end to end with evidence reports.
 
 ## Step 0: Detect the app type and the way to run it
 
@@ -44,7 +44,7 @@ Each subagent returns a compact table, not prose. Merge the tables yourself; whe
 
 ## Step 2: Draft the feature map directory
 
-Work in `{{SKILLS_DIR}}/verify-app/references/features/`, starting from the three templates there.
+Work in `{{SKILLS_DIR}}/verify-app/references/features/`, starting from `README.md` and `_feature.template.md` there (both are installed with the skill).
 
 1. **README.md:** fill the purpose, baseline preconditions (how to be signed in, starting state, what must not be open), driving conventions for this stack, manual-only paths, sweep order, and the index. Take preconditions from what you needed to get the app into a usable state in Step 0.
 2. **One file per feature:** copy `_feature.template.md` to `<feature-id>.md` and fill its four sections: overview with root selector; Sub-features (named ids, one line each); How to get to it (user steps per sub-feature); Driving it (preconditions, per-OS chords, selectors, command ids, gotchas). Rules:
@@ -52,9 +52,9 @@ Work in `{{SKILLS_DIR}}/verify-app/references/features/`, starting from the thre
    - The feature id equals the directory name under `{{FEATURES_DIR}}` when that convention exists. List every sub-feature a vague report might point at (a filter box, a badge, a context menu) and every entry point (button, shortcut, menu, context menu): the feature file is the coverage set that proofs are judged against.
    - Selectors: ARIA labels and semantic data attributes first, test ids only where the file names them. If an element has no stable handle, write "needs selector" in the gotchas for Step 4.
    - Mark gated variants with the exact feature flag.
-3. **cross-cutting-flows.md:** write the journeys that span features (first run, create-edit-persist, error recovery) as `flow-<id>` bullets under `## Flows`, each with its How to get to it and Driving it detail.
+3. **cross-cutting-flows.md:** write the journeys that span features (first run, create-edit-persist, error recovery) as `flow-<id>` bullets under `## Flows`, each with its How to get to it and Driving it detail. Write real journeys only. If `cross-cutting-flows.md` is a stub (a heading and an empty `## Flows`), replace it with a copy of the kit's template (https://github.com/EPISTEX0/poteto-kit/blob/main/templates/skills/verify-app/references/features/cross-cutting-flows.md) filled in for this app; with no real journey yet, leave the stub.
 4. **Index:** one line per feature file in README.md, grouped by area, exact format ``- [`<id>`](<id>.md) — scope`` (the scope is required). Sub-features and flows use exactly ``- `<id>` — <one line>``; an entry point you cannot reach ends with `skip: <reason>`.
-5. Run the two checks from `skills/maintain-verification/SKILL.md` (`check-feature-map.sh`, and `check-coverage.mjs` once scenarios exist) and fix mismatches.
+5. If installed, run the two checks from `skills/maintain-verification/SKILL.md` (`check-feature-map.sh`, and `check-coverage.mjs` once scenarios exist) and fix mismatches; otherwise compare the index with the feature directories by hand.
 
 ## Step 3: Write verify-app/SKILL.md
 

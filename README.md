@@ -10,6 +10,28 @@ The bottleneck with coding agents isn't how fast they write code. It's how much 
 
 poteto-kit is a reusable kit for developers, in three parts: **docs** (`docs/`) that explain each idea and why it works; **templates** (`templates/`) to copy into your repo; and **a runnable example** (`example/`) that proves the templates work. Template bodies are written for agents to read.
 
+## Start here
+
+Paste one line into Claude Code, Cursor or Codex, inside your repo:
+
+```
+Read https://github.com/EPISTEX0/poteto-kit/blob/main/ADOPT.md and adopt poteto-kit into this repo.
+```
+
+Your agent follows [ADOPT.md](ADOPT.md): it adopts the kit one phase at a time on a new branch, shows proof at the end of each phase, and asks you before it continues, commits or changes CI. Not sure what you need? Start from your pain:
+
+| If your agent ... | Start with | Read |
+|---|---|---|
+| says "done" but it's broken | [verify-app](templates/skills/verify-app/SKILL.md) | [02 - verification](docs/02-verification.md) |
+| flails on a vague bug report | [feature map](templates/skills/verify-app/references/features/README.md) | [03 - feature map](docs/03-feature-map.md) |
+| guesses root causes | [investigate](templates/skills/investigate/SKILL.md) | [04 - skills from failures](docs/04-skills-from-failures.md) |
+| keeps earning the same review comment | [review-comment-to-rule](templates/guardrails/review-comment-to-rule.md) | [06 - guardrail layers](docs/06-guardrail-layers.md) |
+| lets the codebase drift | [architecture contract](templates/guardrails/architecture-contract.md) | [07 - agent-friendly architecture](docs/07-agent-first-architecture.md) |
+| can't run in parallel without collisions | [worktree isolation](templates/skills/verify-app/references/worktree-isolation.md) | [02 - verification](docs/02-verification.md) |
+| regresses when you edit a skill | [evals](templates/evals/EVAL_PLAYBOOK.md) | [05 - evals](docs/05-evals.md) |
+
+Prefer to do it yourself? Keep reading: the pillars below and the [Quick start](#quick-start) are written for humans.
+
 ## The three pillars
 
 One question runs through everything: *how do you come to trust your agents?* Three pillars answer it. Every doc and template is filed under one of them; docs [01](docs/01-trust-curve.md) (the trust curve) and [08](docs/08-scaling-to-cloud-agents.md) (scaling) span all three.
@@ -37,8 +59,8 @@ Agents do reasonably well in brownfield codebases that already have guardrails. 
 
 ## Quick start
 
-1. **Copy the three verification skills** into `.agents/skills/` in your repo, flat: `templates/skills/verify-app/` (the whole directory, including `references/`), `templates/skills/create-verification/` and `templates/skills/maintain-verification/`. Also copy [templates/ci/check-feature-map.sh](templates/ci/check-feature-map.sh) to `scripts/check-feature-map.sh`: `create-verification` runs maintain-verification's check script when it finishes. Then make your tool see the skills ([next section](#install-skills-in-your-tool)).
-2. **Fill the placeholders.** Find every one with `grep -rn "{{" .agents/skills`, replace it, and delete each `HOW TO USE` comment block. [templates/README.md](templates/README.md) explains the placeholders and the order of adoption.
+1. **Copy the three verification skills** into `.agents/skills/` in your repo, flat: `templates/skills/verify-app/` (the whole directory, including `references/`), `templates/skills/create-verification/` and `templates/skills/maintain-verification/`. Also copy [templates/ci/check-feature-map.sh](templates/ci/check-feature-map.sh) to `scripts/check-feature-map.sh`: `create-verification` runs maintain-verification's check script when it finishes. Then make your tool see the skills ([next section](#install-skills-in-your-tool)). This manual route copies the full set up front; [ADOPT.md](ADOPT.md) installs less (no `check-feature-map.sh`, no cloud reference) and adds the rest in later phases.
+2. **Fill the placeholders.** Find every one with `grep -rn "{{" .agents/skills --exclude=_feature.template.md`, replace it, and delete each `HOW TO USE` comment block. `_feature.template.md` keeps its placeholders on purpose: it stays in `references/features/` as the copy source for new feature files. Step 3 fills `cross-cutting-flows.md`; run the grep again after it. [templates/README.md](templates/README.md) explains the placeholders and the order of adoption.
 3. **Let the agent draft your feature map.** Tell it: "use the create-verification skill for this repo". Review what it generates, because you know what your users really do.
 4. **Add the guardrails.** Copy [templates/guardrails/AGENTS.md.template](templates/guardrails/AGENTS.md.template) to `AGENTS.md`, [templates/ci/ci.yml](templates/ci/ci.yml) to `.github/workflows/ci.yml` (fill in `{{WORKING_DIR}}`, `{{GATE_COMMAND}}` and the other placeholders at the top of the file), and [templates/ci/check-feature-map.sh](templates/ci/check-feature-map.sh) and [templates/ci/check-coverage.mjs](templates/ci/check-coverage.mjs) into `scripts/`, then call both from your gate command. Fill in [templates/guardrails/enforcement-layers.md](templates/guardrails/enforcement-layers.md) to see which rules are still soft.
 5. **Then grow.** Use [templates/skills/_skill-from-failure.md](templates/skills/_skill-from-failure.md) for each recurring failure, and [templates/evals/EVAL_PLAYBOOK.md](templates/evals/EVAL_PLAYBOOK.md) to measure your skills. Not a TypeScript web app? [docs/09-other-stacks.md](docs/09-other-stacks.md) maps each mechanism to tools for your stack.
@@ -100,6 +122,7 @@ The six stages below are a frame for measuring where you are; tune the "move on 
 ```
 poteto-kit/
 ├── README.md                 entry point (this file)
+├── ADOPT.md                  playbook your coding agent runs to adopt the kit step by step
 ├── LICENSE                   MIT
 ├── assets/                   icon (poteto.png 512px, 128/32px sizes, original artwork)
 ├── .github/workflows/
