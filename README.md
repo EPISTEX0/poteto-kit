@@ -4,6 +4,14 @@
 
 <h1 align="center">poteto-kit</h1>
 
+<br>
+
+<h3 align="center"><em>“When you don’t have much trust in your agents,<br>… you really can’t get the most out of them.”</em></h3>
+
+<p align="center">— <strong>Lauren Tan</strong>, a.k.a. <strong>poteto</strong></p>
+
+<br>
+
 <p align="center">Recipes for trusting your coding agents: verification, skills, and agent-friendly architecture — baked and ready to serve.</p>
 
 The bottleneck with coding agents isn't how fast they write code. It's how much you trust what they hand back. Until you can trust it, you are the verifier, and no amount of parallel agents will save you from that.
