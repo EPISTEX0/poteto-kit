@@ -22,16 +22,21 @@ import { after, describe, test } from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { appConfig } from '../src/app-config'
+import { createNote, hydrateNotes, selectNote, updateNote, useNotesState } from '../src/client'
 import { Shell } from '../src/framework/shell'
-import type { CoverageRecord } from './verify/coverage-record'
-import { nodeSatisfies } from './verify/doctor'
+import { createStore } from '../src/shared/create-store'
+import { handle } from '../src/shared/ipc'
+import type { Note } from '../src/shared/types'
+import { buildCoverageRecord } from './verify/coverage-record'
+import { nodeSatisfies, requiredNode } from './verify/doctor'
 import { loadScenarios } from './verify/load-scenarios'
 import { derivePort, findHolder, parseLsofPid, parseSsPid } from './verify/port'
-import { renderReport, type RunResult } from './verify/report'
+import { passed, renderReport, type RunResult } from './verify/report'
+import { checkProblem, coverageProblem } from './verify/scenario'
 import { waitUntilReady, type BuildInfo } from './verify/server'
 import { summarizeTrace } from './verify/trace'
 
-type Gate = 'lint' | 'typecheck' | 'check:deps' | 'check:features' | 'verify:coverage' | 'verify:reached'
+type Gate = 'lint' | 'typecheck' | 'check:deps' | 'check:features' | 'verify:coverage'
 
 type Finding = { ruleId: string; text: string }
 
@@ -80,7 +85,6 @@ const gateArgs: Record<Gate, string[]> = {
   'check:deps': [],
   'check:features': [],
   'verify:coverage': [],
-  'verify:reached': [],
 }
 
 const cases: Case[] = [
@@ -174,7 +178,10 @@ const cases: Case[] = [
     fixture: 'rogue-writer',
     edits: [{ file: 'src/client/commands.ts', from: 'const store = createStore', to: 'export const store = createStore' }],
     scope: ['src/client/commands.ts'],
-    expects: [{ gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' }],
+    expects: [
+      { gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' },
+      { gate: 'lint', ruleId: 'local/writer-takes-data', text: "'store' is exported" },
+    ],
   },
   {
     fixture: 'store-leak-variants',
@@ -182,19 +189,93 @@ const cases: Case[] = [
     expects: [{ gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts', times: 4 }],
   },
   {
-    fixture: 'setter-passthrough',
+    fixture: 'store-unbound',
     scope: ['src/client/commands.ts'],
-    expects: [{ gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' }],
+    expects: [{ gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts', times: 4 }],
   },
   {
-    fixture: 'setter-callback-passthrough',
+    fixture: 'store-renamed-import',
+    edits: [
+      { file: 'src/client/commands.ts', from: 'import { createStore } from', to: 'import { createStore as make } from' },
+      { file: 'src/client/commands.ts', from: 'const store = createStore<', to: 'export const store = make<' },
+    ],
     scope: ['src/client/commands.ts'],
-    expects: [{ gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' }],
+    expects: [
+      { gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' },
+      { gate: 'lint', ruleId: 'local/writer-takes-data', text: "'store' is exported" },
+    ],
+  },
+  {
+    fixture: 'store-namespace-import',
+    edits: [
+      { file: 'src/client/commands.ts', from: 'import { createStore } from', to: 'import * as kit from' },
+      { file: 'src/client/commands.ts', from: 'const store = createStore<', to: 'export const store = kit.createStore<' },
+    ],
+    scope: ['src/client/commands.ts'],
+    expects: [
+      { gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' },
+      { gate: 'lint', ruleId: 'local/writer-takes-data', text: "'store' is exported" },
+    ],
+  },
+  {
+    fixture: 'store-reexport',
+    edits: [
+      {
+        file: 'src/client/commands.ts',
+        from: "import { createStore } from '@/shared/create-store'",
+        to: "import { makeStore } from '@/shared/violation-make-store'",
+      },
+      { file: 'src/client/commands.ts', from: 'const store = createStore<', to: 'export const store = makeStore<' },
+    ],
+    scope: ['src/client/commands.ts'],
+    expects: [
+      { gate: 'lint', ruleId: 'local/store-stays-private', text: 'src/client/commands.ts' },
+      { gate: 'check:deps', ruleId: 'create-store-is-private', text: 'src/shared/violation-make-store.ts' },
+    ],
+  },
+  {
+    fixture: 'create-store-in-feature',
+    expects: [{ gate: 'check:deps', ruleId: 'create-store-is-private', text: 'src/features/sidebar/violation.ts' }],
+  },
+  {
+    fixture: 'create-store-dynamic-import',
+    expects: [{ gate: 'check:deps', ruleId: 'create-store-is-private', text: 'src/features/sidebar/violation-dynamic-store.ts' }],
   },
   {
     fixture: 'client-second-store',
-    expects: [{ gate: 'lint', ruleId: 'no-restricted-imports', text: 'built in src/client/commands.ts' }],
+    expects: [{ gate: 'check:deps', ruleId: 'create-store-is-private', text: 'src/client/violation-second-store.ts' }],
   },
+  {
+    fixture: 'state-mutation',
+    expects: [
+      { gate: 'typecheck', ruleId: 'TS2540', text: 'read-only property', times: 3 },
+      { gate: 'typecheck', ruleId: 'TS2339', text: "'push'" },
+    ],
+  },
+  ...(
+    [
+    ['setter-passthrough', 'setNotesState'],
+    ['setter-callback-passthrough', 'applyToNotes'],
+    ['writer-callable-alias', 'applyAlias'],
+    ['writer-callable-call', 'applyWithCall'],
+    ['writer-callable-module-var', 'queueUpdate'],
+    ['writer-callable-default', 'applyDefault'],
+    ['writer-callable-type-alias', 'applyReducer'],
+    ['writer-callable-in-object', 'applyOptions'],
+    ['writer-callable-generic', 'applyGeneric'],
+    ['writer-callable-unknown', 'applyUnknown'],
+    ['writer-callable-function-type', 'applyFunction'],
+    ['writer-callable-returned', 'makeApplier'],
+    ['writer-callable-any', 'applyAny'],
+    ['writer-callable-array', 'applyAll'],
+    ] as const
+  ).map(
+    ([fixture, name]): Case => ({
+      fixture,
+      scope: ['src/client/commands.ts'],
+      expects: [{ gate: 'lint', ruleId: 'local/writer-takes-data', text: `'${name}' is exported` }],
+    }),
+  ),
   {
     fixture: 'framework-imports-feature',
     expects: [
@@ -340,6 +421,18 @@ const cases: Case[] = [
     edits: [{ file: 'src/features/editor/editor.tsx', from: 'aria-label="Note title"', to: 'aria-label="Title"' }],
     scope: ['editor.md', 'cross-cutting-flows.md'],
     expects: [{ gate: 'check:features', ruleId: 'feature-selector-drift', text: 'names [aria-label="Note title"]', times: 2 }],
+  },
+  {
+    mutation: 'feature-selector-drift-single-quoted',
+    edits: [{ file: `${featureDocs}/editor.md`, from: '[aria-label="Note title"]', to: "[aria-label='Note heading']" }],
+    scope: ['editor.md'],
+    expects: [{ gate: 'check:features', ruleId: 'feature-selector-drift', text: 'editor.md names [aria-label="Note heading"]' }],
+  },
+  {
+    mutation: 'feature-selector-drift-role',
+    edits: [{ file: `${featureDocs}/search.md`, from: '[role="listbox"]', to: '[role="menu"]' }],
+    scope: ['search.md'],
+    expects: [{ gate: 'check:features', ruleId: 'feature-selector-drift', text: 'search.md names [role="menu"]' }],
   },
   {
     fixture: 'coverage-gap',
@@ -557,6 +650,52 @@ describe('guardrails pass on the clean tree', () => {
   }
 })
 
+describe('what the rules must allow', () => {
+  test('import.meta.hot, import.meta.env, import.meta.url, import.meta.dirname and import.meta.filename are legitimate outside discover.ts', () => {
+    const sandbox = makeSandbox('allowed-import-meta', 'import-meta-allowed')
+    for (const gate of ['lint', 'typecheck'] as const) {
+      const run = runGate(sandbox, gate)
+      assert.equal(run.status, 0, `${gate} must accept import.meta.hot/env/url/dirname/filename:\n${run.stdout}\n${run.stderr}`)
+    }
+  })
+
+  test('a doc selector in single quotes is compared, and a correct one is not a false red', () => {
+    const sandbox = makeSandbox('allowed-single-quoted-selector')
+    applyMutation(sandbox, {
+      edits: [{ file: `${featureDocs}/editor.md`, from: '[aria-label="Note title"]', to: "[aria-label='Note title']" }],
+    })
+    const run = runGate(sandbox, 'check:features')
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+  })
+
+  test('commands that take data (ids, values, patches, readonly lists) are accepted by writer-takes-data', () => {
+    const sandbox = makeSandbox('allowed-data-commands')
+    appendFileSync(
+      join(sandbox, 'src', 'client', 'commands.ts'),
+      `
+export function renameNote(id: string, title: string, when: Date, tags: readonly string[]) {
+  store.set((state) => ({
+    ...state,
+    notes: state.notes.map((note) => (note.id === id ? { ...note, title: \`\${title} \${when.getTime()} \${tags.length}\` } : note)),
+  }))
+}
+`,
+    )
+    const run = runGate(sandbox, 'lint')
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+  })
+})
+
+describe('the type-aware rules refuse to run blind', () => {
+  test('without parserOptions.projectService, lint fails loudly instead of silently checking nothing', () => {
+    const sandbox = makeSandbox('type-aware-rules-blind')
+    applyMutation(sandbox, { edits: [{ file: 'eslint.config.js', from: 'projectService: true, ', to: '' }] })
+    const run = runGate(sandbox, 'lint')
+    assert.notEqual(run.status, 0)
+    assert.match(`${run.stdout}\n${run.stderr}`, /local\/store-stays-private needs type information/)
+  })
+})
+
 describe('adding a feature is only new files', () => {
   test('a new folder, its doc, an index line and a scenario pass every gate, verify and reach the bundle', async () => {
     const sandbox = makeSandbox('add-feature-folder', 'add-feature-folder')
@@ -581,95 +720,49 @@ describe('adding a feature is only new files', () => {
   })
 })
 
-async function writeRunRecord(sandbox: string, change: (record: CoverageRecord) => void) {
-  const record: CoverageRecord = {
-    generatedAt: '2026-01-01T00:00:00.000Z',
+describe('the coverage record is an export of the run, never an input to a gate', () => {
+  const run = (feature: string, scenario: string, overrides: Partial<RunResult>): RunResult => ({
+    feature,
+    scenario,
+    description: 'demo',
     command: 'npm run verify:all',
+    appUrl: 'http://127.0.0.1:1/',
     injectBug: false,
-    scenarios: (await loadScenarios()).map((scenario) => ({
-      name: `${scenario.feature}/${scenario.name}`,
-      passed: true,
-      covers: [...scenario.covers],
-    })),
-  }
-  change(record)
-  mkdirSync(join(sandbox, 'artifacts'), { recursive: true })
-  writeFileSync(join(sandbox, 'artifacts', 'verify-coverage.json'), JSON.stringify(record))
-}
-
-function reachedFindings(sandbox: string) {
-  const run = runGate(sandbox, 'verify:reached')
-  return { run, found: findings('verify:reached', run, sandbox) }
-}
-
-describe('coverage comes from what ran, not from what a scenario declares', () => {
-  test('without a record of a verify:all run there is no coverage', () => {
-    const { run, found } = reachedFindings(makeSandbox('reached-no-run'))
-    assert.notEqual(run.status, 0)
-    assert.deepEqual(found.map((finding) => finding.ruleId), ['verify-coverage-no-run'])
-    assert.match(found[0]?.text ?? '', /run npm run verify:all first/)
+    startedAt: '2026-01-01T00:00:00.000Z',
+    durationMs: 1,
+    steps: [],
+    checks: [],
+    reached: [],
+    consoleEntries: [],
+    trace: null,
+    failure: null,
+    artifactDir: 'artifacts/demo',
+    ...overrides,
   })
 
-  test('a run in which every declared id was reached passes', async () => {
-    const sandbox = makeSandbox('reached-all')
-    await writeRunRecord(sandbox, () => {})
-    const { run } = reachedFindings(sandbox)
-    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
-    assert.match(run.stdout, /verify:reached ok \(12 of 13 entry points reached by the last verify:all run/)
+  test('buildCoverageRecord lists the reached ids of a passing scenario and none for a failed one', () => {
+    const record = buildCoverageRecord([
+      run('search', 'passes', { reached: ['search-filter', 'search-open-chord'] }),
+      run('search', 'fails', { reached: ['search-close-escape'], failure: 'expectation failed: demo' }),
+      run('sidebar', 'console-error', { reached: ['sidebar-new-note'], consoleEntries: [{ kind: 'console.error', text: 'boom' }] }),
+    ])
+    assert.deepEqual(record.scenarios, [
+      { name: 'search/passes', passed: true, covers: ['search-filter', 'search-open-chord'] },
+      { name: 'search/fails', passed: false, covers: [] },
+      { name: 'sidebar/console-error', passed: false, covers: [] },
+    ])
+    assert.equal(record.command, 'npm run verify:all')
+    assert.equal(record.injectBug, false)
+    assert.ok(Number.isFinite(Date.parse(record.generatedAt)))
   })
 
-  test('an id a scenario declares but the run never reached fails, naming the scenario and the id', async () => {
-    const sandbox = makeSandbox('reached-missing-id')
-    await writeRunRecord(sandbox, (record) => {
-      const entry = record.scenarios.find((scenario) => scenario.name === 'editor/edit-title-updates-sidebar')
-      assert.ok(entry)
-      entry.covers = []
-    })
-    const { run, found } = reachedFindings(sandbox)
-    assert.notEqual(run.status, 0)
-    assert.equal(found.length, 1, found.map((finding) => finding.text).join('\n'))
-    assert.equal(found[0]?.ruleId, 'verify-coverage-not-reached')
-    assert.match(found[0]?.text ?? '', /editor\/edit-title-updates-sidebar declares covers: \['editor-edit-title'\]/)
+  test('buildCoverageRecord marks a record from an INJECT_BUG=1 build', () => {
+    const record = buildCoverageRecord([run('a', 'one', {}), run('a', 'two', { injectBug: true })])
+    assert.equal(record.injectBug, true)
   })
 
-  test('a scenario that failed reaches nothing, whatever it declares', async () => {
-    const sandbox = makeSandbox('reached-failed-scenario')
-    await writeRunRecord(sandbox, (record) => {
-      const entry = record.scenarios.find((scenario) => scenario.name === 'search/shortcut-filters-and-selects')
-      assert.ok(entry)
-      entry.passed = false
-      entry.covers = []
-    })
-    const { found } = reachedFindings(sandbox)
-    assert.deepEqual(
-      found.map((finding) => finding.ruleId),
-      ['verify-coverage-not-reached', 'verify-coverage-not-reached', 'verify-coverage-not-reached'],
-    )
-    assert.ok(found.every((finding) => finding.text.includes('(the scenario failed)')))
-  })
-
-  test('a run built with INJECT_BUG=1 is not coverage', async () => {
-    const sandbox = makeSandbox('reached-bug-run')
-    await writeRunRecord(sandbox, (record) => {
-      record.injectBug = true
-    })
-    const { run, found } = reachedFindings(sandbox)
-    assert.notEqual(run.status, 0)
-    assert.deepEqual(found.map((finding) => finding.ruleId), ['verify-coverage-bug-run'])
-  })
-
-  test('a scenario added after the last run is stale until verify:all runs again', async () => {
-    const sandbox = makeSandbox('reached-stale-run')
-    await writeRunRecord(sandbox, (record) => {
-      record.scenarios = record.scenarios.filter((scenario) => scenario.name !== 'sidebar/select-note')
-    })
-    const { run, found } = reachedFindings(sandbox)
-    assert.notEqual(run.status, 0)
-    assert.deepEqual(found.map((finding) => finding.ruleId), ['verify-coverage-stale-run'])
-  })
-
-  test('end to end: a real scenario that declares an entry and never asserts on it fails verify and the reached check', async () => {
-    const sandbox = makeSandbox('reached-end-to-end')
+  test('a hand-written record cannot make a failing verify:all pass; the run overwrites it from what it asserted', async () => {
+    const sandbox = makeSandbox('record-end-to-end')
     applyMutation(sandbox, {
       edits: [
         {
@@ -679,6 +772,17 @@ describe('coverage comes from what ran, not from what a scenario declares', () =
         },
       ],
     })
+    const forged = (await loadScenarios()).map((scenario) => ({
+      name: `${scenario.feature}/${scenario.name}`,
+      passed: true,
+      covers: [...scenario.covers],
+    }))
+    mkdirSync(join(sandbox, 'artifacts'), { recursive: true })
+    const recordPath = join(sandbox, 'artifacts', 'verify-coverage.json')
+    writeFileSync(
+      recordPath,
+      JSON.stringify({ generatedAt: '2020-01-01T00:00:00.000Z', command: 'npm run verify:all', injectBug: false, scenarios: forged }),
+    )
     const port = await freePort()
     const verify = spawnSync('npm', ['run', '--silent', 'verify', '--', '--all', '--port', String(port)], {
       cwd: sandbox,
@@ -690,14 +794,244 @@ describe('coverage comes from what ran, not from what a scenario declares', () =
       /FAIL {2}editor\/edit-title-updates-sidebar {2}scenario covers \[editor-edit-title\] but no passing expect/,
     )
     assert.match(verify.stdout, /PASS {2}editor\/edit-body-persists/)
-    const { run, found } = reachedFindings(sandbox)
-    assert.notEqual(run.status, 0)
-    assert.deepEqual(
-      found.map((finding) => finding.ruleId),
-      ['verify-coverage-not-reached'],
-    )
-    assert.match(found[0]?.text ?? '', /editor\/edit-title-updates-sidebar declares covers: \['editor-edit-title'\].*\(the scenario failed\)/)
+    const written = JSON.parse(readFileSync(recordPath, 'utf8')) as ReturnType<typeof buildCoverageRecord>
+    assert.notEqual(written.generatedAt, '2020-01-01T00:00:00.000Z')
+    const edit = written.scenarios.find((entry) => entry.name === 'editor/edit-title-updates-sidebar')
+    assert.deepEqual(edit, { name: 'editor/edit-title-updates-sidebar', passed: false, covers: [] })
+    const body = written.scenarios.find((entry) => entry.name === 'editor/edit-body-persists')
+    assert.deepEqual(body, { name: 'editor/edit-body-persists', passed: true, covers: ['editor-edit-body'] })
   })
+
+  test('no script other than the two that write the record, and no package script, consumes it', () => {
+    const writers = ['verify/cli.ts', 'verify/coverage-record.ts', 'guardrails.test.ts']
+    const scriptsRoot = join(projectRoot, 'scripts')
+    const readers = walk(scriptsRoot)
+      .filter((file) => !writers.includes(relative(scriptsRoot, file)))
+      .filter((file) => /verify-coverage\.json|coverage-record|coverageRecordPath/.test(readFileSync(file, 'utf8')))
+    assert.deepEqual(readers.map((file) => relative(projectRoot, file)), [])
+    const scripts = (JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) as { scripts: Record<string, string> }).scripts
+    assert.equal(scripts['verify:reached'], undefined)
+    assert.doesNotMatch(Object.values(scripts).join('\n'), /verify-coverage\.json/)
+  })
+})
+
+describe('a scenario cannot pass with a failed assertion', () => {
+  const check = (pass: boolean) => ({ name: 'demo check', expected: '"a"', observed: pass ? '"a"' : '"b"', pass })
+  const result = (overrides: Partial<RunResult>): RunResult => ({
+    feature: 'demo',
+    scenario: 'demo',
+    description: 'demo',
+    command: 'npm run verify:all',
+    appUrl: 'http://127.0.0.1:1/',
+    injectBug: false,
+    startedAt: '2026-01-01T00:00:00.000Z',
+    durationMs: 1,
+    steps: [],
+    checks: [],
+    reached: ['demo-id'],
+    consoleEntries: [],
+    trace: null,
+    failure: null,
+    artifactDir: 'artifacts/demo',
+    ...overrides,
+  })
+
+  test('passed() is false when any recorded check failed, even though the scenario did not throw', () => {
+    assert.equal(passed(result({ checks: [check(true), check(true)] })), true)
+    assert.equal(passed(result({ checks: [check(true), check(false)] })), false)
+  })
+
+  test('the report and the coverage record agree with passed()', () => {
+    const swallowed = result({ checks: [check(false)] })
+    assert.match(renderReport(swallowed), /^- \*\*Result:\*\* FAIL$/m)
+    assert.deepEqual(buildCoverageRecord([swallowed]).scenarios, [{ name: 'demo/demo', passed: false, covers: [] }])
+  })
+
+  test('checkProblem names the first failed check and is null when all passed', () => {
+    assert.equal(checkProblem([check(true)]), null)
+    assert.equal(checkProblem([check(true), check(false)]), 'expectation failed: demo check')
+  })
+
+  test('an expect() wrapped in try/catch inside a scenario still turns verify red', async () => {
+    const sandbox = makeSandbox('scenario-swallowed-expect')
+    applyMutation(sandbox, {
+      edits: [
+        {
+          file: 'scripts/verify/scenarios/sidebar.ts',
+          from: "await expect('seed notes are listed', seedTitles, () => u.noteRows.allTextContents())",
+          to: "try {\n        await expect('seed notes are listed', ['nope'], () => u.noteRows.allTextContents(), { timeoutMs: 100 })\n      } catch {\n        await Promise.resolve()\n      }",
+        },
+      ],
+    })
+    const port = await freePort()
+    const verify = spawnSync('npm', ['run', '--silent', 'verify', '--', '--feature', 'sidebar', '--port', String(port)], {
+      cwd: sandbox,
+      encoding: 'utf8',
+    })
+    assert.equal(verify.status, 1, `${verify.stdout}\n${verify.stderr}`)
+    assert.match(verify.stdout, /FAIL {2}sidebar\/create-note {2}expectation failed: seed notes are listed/)
+    assert.match(verify.stdout, /PASS {2}sidebar\/select-note/)
+  })
+})
+
+describe('a scenario must reach exactly the entry points it lists', () => {
+  test('reaching an id that covers does not list fails, and so does listing one that was not reached', () => {
+    assert.equal(coverageProblem({ covers: ['a'] }, new Set(['a'])), null)
+    assert.match(coverageProblem({ covers: ['a'] }, new Set(['a', 'b'])) ?? '', /reaches \[b\] without listing it/)
+    assert.match(coverageProblem({ covers: ['a', 'b'] }, new Set(['a'])) ?? '', /covers \[b\] but no passing expect/)
+  })
+})
+
+describe('durable state: one writer, intent commands, frozen at runtime', () => {
+  const seed = (...ids: string[]): Note[] => ids.map((id) => ({ id, title: `Title ${id}`, body: `Body ${id}` }))
+
+  const readState = () => {
+    const seen: ReturnType<typeof useNotesState>[] = []
+    renderToStaticMarkup(
+      createElement(function Probe() {
+        seen.push(useNotesState())
+        return null
+      }),
+    )
+    const state = seen[0]
+    assert.ok(state)
+    return state
+  }
+
+  const hydrateWith = async (...ids: string[]) => {
+    handle('notes:load', () => seed(...ids))
+    await hydrateNotes()
+  }
+
+  test('hydrating notes whose ids are not 1..n never makes the next created note repeat an id', async () => {
+    await hydrateWith('note-1', 'note-3')
+    createNote()
+    createNote()
+    assert.deepEqual(
+      readState().notes.map((note) => note.id),
+      ['note-5', 'note-4', 'note-1', 'note-3'],
+    )
+  })
+
+  test('hydrating selects the first loaded note, and hydrating nothing selects none', async () => {
+    await hydrateWith('note-7', 'note-2')
+    assert.equal(readState().selectedId, 'note-7')
+    await hydrateWith()
+    assert.equal(readState().selectedId, null)
+    createNote()
+    assert.deepEqual(
+      readState().notes.map((note) => note.id),
+      ['note-1'],
+    )
+  })
+
+  test('the commands still do their job on the frozen state', async () => {
+    await hydrateWith('note-1', 'note-2')
+    updateNote('note-2', { title: 'Renamed' })
+    selectNote('note-2')
+    const state = readState()
+    assert.equal(state.selectedId, 'note-2')
+    assert.deepEqual(
+      state.notes.map((note) => note.title),
+      ['Title note-1', 'Renamed'],
+    )
+  })
+
+  test('every way of writing to a note or to the state the store hands out throws or changes nothing', async () => {
+    await hydrateWith('note-1', 'note-2')
+    const state = readState()
+    const note = state.notes[0] as { title: string; body: string }
+    const tidy = (target: { title: string }) => {
+      target.title = ''
+    }
+    assert.throws(() => tidy(note), TypeError)
+    assert.throws(() => {
+      note.body = ''
+    }, TypeError)
+    assert.throws(() => Object.assign(note, { title: '' }), TypeError)
+    assert.throws(() => (state.notes as Note[]).push(seed('note-9')[0]!), TypeError)
+    assert.throws(() => {
+      ;(state as { selectedId: string | null }).selectedId = null
+    }, TypeError)
+    assert.equal(Reflect.set(note, 'title', ''), false)
+    assert.equal(readState().notes[0]?.title, 'Title note-1')
+    assert.equal(readState().notes.length, 2)
+    assert.equal(readState().selectedId, 'note-1')
+  })
+
+  test('a feature that writes to a note through a structurally typed parameter typechecks but turns verify red', async () => {
+    const sandbox = makeSandbox('feature-writes-state')
+    applyMutation(sandbox, {
+      edits: [
+        {
+          file: 'src/features/sidebar/sidebar.tsx',
+          from: 'onClick={() => selectNote(note.id)}',
+          to: 'onClick={() => {\n                blank(note)\n                selectNote(note.id)\n              }}',
+        },
+        {
+          file: 'src/features/sidebar/sidebar.tsx',
+          from: 'export function Sidebar() {',
+          to: "function blank(target: { title: string }) {\n  target.title = ''\n}\n\nexport function Sidebar() {",
+        },
+      ],
+    })
+    const typecheck = runGate(sandbox, 'typecheck')
+    assert.equal(typecheck.status, 0, `${typecheck.stdout}\n${typecheck.stderr}`)
+    const port = await freePort()
+    const verify = spawnSync('npm', ['run', '--silent', 'verify', '--', '--feature', 'sidebar', '--port', String(port)], {
+      cwd: sandbox,
+      encoding: 'utf8',
+    })
+    assert.equal(verify.status, 1, `${verify.stdout}\n${verify.stderr}`)
+    assert.match(verify.stdout, /FAIL {2}sidebar\/select-note/)
+    assert.match(verify.stdout, /PASS {2}sidebar\/create-note/)
+    const runs = readdirSync(join(sandbox, 'artifacts'))
+    const report = readFileSync(join(sandbox, 'artifacts', runs[0]!, 'sidebar-select-note', 'report.md'), 'utf8')
+    assert.match(report, /pageerror: TypeError: Cannot assign to read only property 'title'/)
+  })
+
+  test('createStore freezes the initial value and every value set, however deeply nested', () => {
+    const store = createStore({ list: [{ inner: { value: 1 } }], flag: false })
+    const initial = store.get()
+    assert.ok(Object.isFrozen(initial) && Object.isFrozen(initial.list) && Object.isFrozen(initial.list[0]!.inner))
+    store.set(() => ({ list: [{ inner: { value: 2 } }], flag: true }))
+    const next = store.get()
+    assert.ok(Object.isFrozen(next) && Object.isFrozen(next.list) && Object.isFrozen(next.list[0]!.inner))
+    assert.throws(() => {
+      ;(next.list[0]!.inner as { value: number }).value = 3
+    }, TypeError)
+  })
+})
+
+describe('the search scenario proves what the feature doc claims', () => {
+  for (const [label, expression] of [
+    ['matches only titles', 'note.title.toLowerCase().includes(needle)'],
+    ['matches the body case-sensitively', 'note.title.toLowerCase().includes(needle) || note.body.includes(needle)'],
+  ] as const) {
+    test(`a filter that ${label} turns verify red`, async () => {
+      const sandbox = makeSandbox(`search-filter-${label.includes('only') ? 'title-only' : 'body-case'}`)
+      applyMutation(sandbox, {
+        edits: [
+          {
+            file: 'src/features/search/filter-notes.ts',
+            from: 'note.title.toLowerCase().includes(needle) || note.body.toLowerCase().includes(needle)',
+            to: expression,
+          },
+        ],
+      })
+      const port = await freePort()
+      const verify = spawnSync('npm', ['run', '--silent', 'verify', '--', '--feature', 'search', '--port', String(port)], {
+        cwd: sandbox,
+        encoding: 'utf8',
+      })
+      assert.equal(verify.status, 1, `${verify.stdout}\n${verify.stderr}`)
+      assert.match(
+        verify.stdout,
+        /FAIL {2}search\/shortcut-filters-and-selects {2}expectation failed: a body-only match in other letter case/,
+      )
+      assert.match(verify.stdout, /PASS {2}search\/arrow-navigation/)
+    })
+  }
 })
 
 describe('the framework knows nothing about the app', () => {
@@ -883,6 +1217,57 @@ describe('doctor checks the whole node engines range', () => {
       assert.equal(nodeSatisfies(version, range), ok)
     })
   }
+})
+
+describe('doctor reports unreadable inputs instead of crashing', () => {
+  const doctor = async (sandbox: string) =>
+    spawnSync('npx', ['tsx', 'scripts/verify/cli.ts', 'doctor', '--port', String(await freePort())], {
+      cwd: sandbox,
+      encoding: 'utf8',
+    })
+
+  test('a truncated dist/.verify-build.json is a warning that says how to fix it, not a stack trace', async () => {
+    const sandbox = makeSandbox('doctor-truncated-build-record')
+    mkdirSync(join(sandbox, 'dist'), { recursive: true })
+    writeFileSync(join(sandbox, 'dist', 'index.html'), '<!doctype html>')
+    writeFileSync(join(sandbox, 'dist', '.verify-build.json'), '{"builtAt": "now", "inj')
+    const run = await doctor(sandbox)
+    assert.doesNotMatch(`${run.stdout}${run.stderr}`, /\n\s+at /)
+    assert.match(run.stdout, /warning: dist\/\.verify-build\.json is not valid JSON with a nonce and an injectBug flag/)
+    assert.match(run.stdout, /rebuild/)
+    assert.match(run.stdout, /verdict: /)
+  })
+
+  test('a build record without a nonce is treated the same way', async () => {
+    const sandbox = makeSandbox('doctor-nonce-less-build-record')
+    mkdirSync(join(sandbox, 'dist'), { recursive: true })
+    writeFileSync(join(sandbox, 'dist', 'index.html'), '<!doctype html>')
+    writeFileSync(join(sandbox, 'dist', '.verify-build.json'), JSON.stringify({ builtAt: 'now', injectBug: false }))
+    const run = await doctor(sandbox)
+    assert.match(run.stdout, /warning: dist\/\.verify-build\.json is not valid JSON with a nonce/)
+  })
+
+  test('an engines.node comparator it cannot evaluate is a blocking problem that names the comparator', async () => {
+    const sandbox = makeSandbox('doctor-unsupported-range')
+    const manifestPath = join(sandbox, 'package.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { engines: { node: string } }
+    manifest.engines.node = '~22.1.0'
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+    const run = await doctor(sandbox)
+    assert.equal(run.status, 1)
+    assert.doesNotMatch(`${run.stdout}${run.stderr}`, /\n\s+at /)
+    assert.match(run.stdout, /problem: engines\.node comparator "~22\.1\.0" is not supported by verify doctor/)
+  })
+
+  test('a package.json that is not JSON is reported as a problem by name', () => {
+    const directory = join(sandboxRoot, 'doctor-bad-manifest')
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'package.json'), '{ "engines": ')
+    const { range, problem } = requiredNode(directory)
+    assert.equal(range, '*')
+    assert.match(problem ?? '', /^package\.json cannot be read, so the node range is unknown: SyntaxError/)
+    assert.deepEqual(requiredNode(projectRoot), { range: '^22.13.0 || ^24.0.0 || >=26.0.0', problem: null })
+  })
 })
 
 describe('verify report', () => {

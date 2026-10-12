@@ -1,0 +1,5 @@
+
+export function applyFunction(reduce: Function) {
+  const run = reduce as (state: NotesState) => NotesState
+  store.set((state) => run(state))
+}

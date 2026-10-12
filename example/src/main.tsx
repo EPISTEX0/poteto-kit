@@ -1,8 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { appConfig } from '@/app-config'
-import { resetNotes } from '@/client'
+import { hydrateNotes } from '@/client'
 import { startMain } from '@/electron/main'
-import { loadNotes } from '@/electron/renderer'
 import { discoverFeatures, Shell } from '@/framework'
 import './styles.css'
 
@@ -12,5 +11,5 @@ if (!container) {
 }
 
 startMain()
-resetNotes(await loadNotes())
+await hydrateNotes()
 createRoot(container).render(<Shell title={appConfig.name} features={discoverFeatures()} />)

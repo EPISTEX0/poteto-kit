@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { findChrome } from './chrome'
-import { buildInfoPath } from './server'
+import { buildInfoPath, readBuildInfo } from './server'
 import { derivePort, describeHolder, findHolder, isPortFree, projectRoot } from './port'
 
 function newestMtime(path: string): number {
@@ -29,9 +29,21 @@ function gitKind(start: string) {
   }
 }
 
-function requiredNode() {
-  const engines = (JSON.parse(readFileSync('package.json', 'utf8')) as { engines?: { node?: string } }).engines
-  return engines?.node ?? '*'
+export function requiredNode(root: string): { range: string; problem: string | null } {
+  try {
+    const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { engines?: { node?: string } }
+    return { range: manifest.engines?.node ?? '*', problem: null }
+  } catch (error) {
+    return { range: '*', problem: `package.json cannot be read, so the node range is unknown: ${String(error)}` }
+  }
+}
+
+function checkNode(range: string) {
+  try {
+    return { ok: nodeSatisfies(process.versions.node, range), problem: null }
+  } catch (error) {
+    return { ok: false, problem: error instanceof Error ? error.message : String(error) }
+  }
 }
 
 type Version = [number, number, number]
@@ -89,10 +101,13 @@ export async function runDoctor(explicitPort: number | undefined) {
 
   row('project', root)
 
-  const range = requiredNode()
-  const nodeOk = nodeSatisfies(process.versions.node, range)
+  const { range, problem: manifestProblem } = requiredNode(root)
+  const { ok: nodeOk, problem: rangeProblem } = checkNode(range)
   row('node', `v${process.versions.node} (needs ${range}) ${nodeOk ? 'ok' : 'NOT SUPPORTED'}`)
-  if (!nodeOk) {
+  const nodeProblem = manifestProblem ?? rangeProblem
+  if (nodeProblem) {
+    blocking.push(nodeProblem)
+  } else if (!nodeOk) {
     blocking.push(`node v${process.versions.node} is outside package.json engines (${range})`)
   }
 
@@ -119,8 +134,12 @@ export async function runDoctor(explicitPort: number | undefined) {
       warnings.push('dist/ is older than src/; verify rebuilds it, but a plain vite preview would serve old code')
     }
     if (existsSync(join(root, buildInfoPath))) {
-      const info = JSON.parse(readFileSync(join(root, buildInfoPath), 'utf8')) as { injectBug: boolean }
-      if (info.injectBug) {
+      const info = readBuildInfo(join(root, buildInfoPath))
+      if (!info) {
+        warnings.push(
+          `${buildInfoPath} is not valid JSON with a nonce and an injectBug flag, so dist/ cannot be matched to a build; run verify without --no-build to rebuild it`,
+        )
+      } else if (info.injectBug) {
         warnings.push('dist/ was built with INJECT_BUG=1 and contains the injected bug')
       }
     }

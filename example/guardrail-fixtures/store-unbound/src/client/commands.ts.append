@@ -1,0 +1,7 @@
+
+const { get: readNotes, set: writeNotes } = createStore<NotesState>({ notes: [], selectedId: null, nextId: 1 })
+const chained = createStore<NotesState>({ notes: [], selectedId: null, nextId: 1 }).get()
+const listed = [createStore<NotesState>({ notes: [], selectedId: null, nextId: 1 })]
+
+export const unbound = { readNotes, writeNotes, chained, listed }
+export default createStore<NotesState>({ notes: [], selectedId: null, nextId: 1 })

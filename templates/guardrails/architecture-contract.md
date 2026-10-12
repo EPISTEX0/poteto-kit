@@ -37,11 +37,13 @@ A coding agent optimizes for what fits in its context. These behaviours are pred
 | --- | --- | --- |
 | 1 | The conventional path requires fewer decisions than a shortcut | {{ENFORCEMENT_1: for example a scaffold command, one file naming convention, reserved file names that are picked up automatically}} |
 | 2 | Forbidden dependencies fail mechanically | {{ENFORCEMENT_2: for example import-boundary check on the dependency graph in CI, separate TS projects per process or package}} |
-| 3 | Every durable value has one obvious writer | {{ENFORCEMENT_3: for example state behind a store with commands; lint rule against writing it elsewhere}} |
+| 3 | Every durable value has one obvious writer | {{ENFORCEMENT_3: for example state behind a store with commands; no setter for a whole state or list, state frozen at runtime so a write throws, a dependency rule on the store module's path, and a type-aware lint rule against the common shapes of exporting or aliasing it; state which escapes remain}} |
 | 4 | New product work adds isolated files rather than branches in shared roots | {{ENFORCEMENT_4: for example discovery from reserved files; CI check that shared roots contain no feature-specific identifiers}} |
 | 5 | Exceptions are narrow, explicit, and reviewed as architecture changes | {{ENFORCEMENT_5: for example an allowlist file with owner and reason, changes to it need an architecture reviewer}} |
 
 Each rule must name its layer in `enforcement-layers.md`. Prefer layers 1 and 2 (codebase, static analysis); use rules and skills only as a backup.
+
+Write each "how we enforce it here" cell as a claim a fixture proves, and nothing wider. Static rules catch the common shapes a careless agent writes; they are not a boundary against deliberate evasion, because static analysis of a language like TypeScript is not sound (structural `readonly`, containers, reflection, re-exports through an allowed file, copied files). Prefer making the wrong thing structurally absent (no API for it, a value frozen at runtime, a narrower type) to a rule that detects one spelling of it, and list the known escapes under "Not enforced" next to the rule. Runtime checks, verification scenarios and review cover what the static layer cannot.
 
 ## 4. Public nouns
 
@@ -81,5 +83,5 @@ An error that names the supported path teaches the agent the right move in the s
 
 - New conventions start as a row in section 3 or 4 with an enforcement plan; a convention with no mechanical enforcement is a soft rule (see `enforcement-layers.md`).
 - Review architecture exceptions as architecture changes: narrow, explicit, written down.
-- When an agent finds a shortcut that works, treat it as a bug in the architecture: close it with a check and an error message, then add the lesson to `AGENTS.md` and the relevant skill.
+- When an agent finds a shortcut that works, treat it as a bug in the architecture: close it where it comes from: first by removing the API or freezing the value that made it possible, and only then with a check and an error message; do not add a rule per spelling. Then add the lesson to `AGENTS.md` and the relevant skill.
 - A greenfield app built fast without these constraints accumulates "organic" structure: agents solve each task in whatever way is most convenient, and the codebase drifts out of anyone's understanding. Put the constraints in before that happens; a brownfield app with strong conventions already has most of them.

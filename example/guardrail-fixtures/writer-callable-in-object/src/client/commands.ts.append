@@ -1,0 +1,4 @@
+
+export function applyOptions(options: { reduce: (state: NotesState) => NotesState }) {
+  store.set((state) => options.reduce(state))
+}

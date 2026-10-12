@@ -39,6 +39,13 @@ module.exports = {
       to: { path: '^src/client/', pathNot: '^src/client/index\\.ts$' },
     },
     {
+      name: 'create-store-is-private',
+      severity: 'error',
+      comment: "src/shared/create-store.ts may be imported only by src/client/commands.ts (the one writer of durable notes state) and by the feature stores listed here. Import, rename, namespace and re-export all count, because this rule follows the module path. Add a command in src/client/commands.ts instead of building a store; a new private UI store needs its path added to this rule's pathNot in its own commit, as an architecture change.",
+      from: { pathNot: ['^src/client/commands\\.ts$', '^src/features/search/search-store\\.ts$'] },
+      to: { path: '^src/shared/create-store\\.ts$' },
+    },
+    {
       name: 'framework-is-a-package',
       severity: 'error',
       comment: 'src/framework is a standalone package: it may import only itself and npm packages, never src/features, src/client or app code. Receive what it needs through a Feature definition or props.',

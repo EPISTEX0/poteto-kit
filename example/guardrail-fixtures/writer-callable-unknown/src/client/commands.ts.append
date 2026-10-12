@@ -1,0 +1,5 @@
+
+export function applyUnknown(reduce: unknown) {
+  const run = reduce as (state: NotesState) => NotesState
+  store.set((state) => run(state))
+}

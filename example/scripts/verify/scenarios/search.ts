@@ -19,9 +19,17 @@ export const scenarios: Scenario[] = [
       )
       await expect('all notes are listed before typing', 3, () => u.searchResults.count())
       await step('Type "groc"', () => page.keyboard.type('groc'))
-      await expect('only the matching note remains', ['Grocery list'], () => u.searchResults.allTextContents(), {
-        reaches: 'search-filter',
+      await expect('a title match leaves only that note', ['Grocery list'], () => u.searchResults.allTextContents())
+      await step('Replace the query with "OAT MILK", words that appear only in a body, in capitals', async () => {
+        await page.keyboard.press('Control+A')
+        await page.keyboard.type('OAT MILK')
       })
+      await expect(
+        'a body-only match in other letter case leaves only that note',
+        ['Grocery list'],
+        () => u.searchResults.allTextContents(),
+        { reaches: 'search-filter' },
+      )
       await step('Press Enter', () => page.keyboard.press('Enter'))
       await expect('search palette closed', 0, () => u.searchInput.count())
       await expect('editor opened the selected note', 'Grocery list', () => u.title.inputValue())

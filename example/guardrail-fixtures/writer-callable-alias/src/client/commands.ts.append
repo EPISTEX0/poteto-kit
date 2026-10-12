@@ -1,0 +1,5 @@
+
+export function applyAlias(fn: (state: NotesState) => NotesState) {
+  const apply = fn
+  store.set((state) => apply(state))
+}

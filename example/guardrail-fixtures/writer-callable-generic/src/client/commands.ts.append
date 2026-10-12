@@ -1,0 +1,5 @@
+
+export function applyGeneric<Reduce extends (state: NotesState) => NotesState>(reduce: Reduce) {
+  const run: (state: NotesState) => NotesState = reduce
+  store.set((state) => run(state))
+}

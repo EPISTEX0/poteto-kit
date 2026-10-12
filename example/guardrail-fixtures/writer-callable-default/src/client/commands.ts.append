@@ -1,0 +1,4 @@
+
+export function applyDefault(fn: (state: NotesState) => NotesState) {
+  store.set((state, apply = fn) => apply(state))
+}

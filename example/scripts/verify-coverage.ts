@@ -1,6 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { coverageRecordPath, type CoverageRecord } from './verify/coverage-record'
 import { loadScenarios } from './verify/load-scenarios'
 
 const docsDir = join(process.cwd(), '.agents', 'skills', 'verify-app', 'references', 'features')
@@ -68,56 +67,6 @@ for (const [id, names] of covering) {
   }
 }
 
-const lastRun: { record: CoverageRecord | null } = { record: null }
-
-function readRecord(): CoverageRecord | null {
-  const path = coverageRecordPath()
-  if (!existsSync(path)) {
-    errors.push(
-      `verify-coverage-no-run: ${path} does not exist; coverage comes from what ran, so run npm run verify:all first`,
-    )
-    return null
-  }
-  try {
-    return JSON.parse(readFileSync(path, 'utf8')) as CoverageRecord
-  } catch (error) {
-    errors.push(`verify-coverage-no-run: cannot read ${path}: ${String(error)}; rerun npm run verify:all`)
-    return null
-  }
-}
-
-function checkReached() {
-  const record = readRecord()
-  if (!record) {
-    return
-  }
-  lastRun.record = record
-  const when = `the last verify:all run (${record.generatedAt})`
-  if (record.injectBug) {
-    errors.push(`verify-coverage-bug-run: ${when} was built with INJECT_BUG=1; coverage must come from a clean run`)
-  }
-  const recorded = new Map(record.scenarios.map((entry) => [entry.name, entry]))
-  for (const scenario of scenarios) {
-    const name = `${scenario.feature}/${scenario.name}`
-    const entry = recorded.get(name)
-    if (!entry) {
-      errors.push(`verify-coverage-stale-run: ${name} is not part of ${when}; rerun npm run verify:all`)
-      continue
-    }
-    for (const id of scenario.covers) {
-      if (!entry.covers.includes(id)) {
-        errors.push(
-          `verify-coverage-not-reached: ${name} declares covers: ['${id}'] but ${when} never reached it${entry.passed ? '' : ' (the scenario failed)'}; a passing expect(..., { reaches: '${id}' }) must assert on it`,
-        )
-      }
-    }
-  }
-}
-
-if (process.argv.includes('--reached') && errors.length === 0) {
-  checkReached()
-}
-
 if (errors.length > 0) {
   console.error(errors.join('\n'))
   process.exit(1)
@@ -125,11 +74,8 @@ if (errors.length > 0) {
 
 const skipped = entryPoints.filter((entry) => entry.skip !== null)
 const covered = entryPoints.length - skipped.length
-const { record } = lastRun
 console.log(
-  record
-    ? `verify:reached ok (${covered} of ${entryPoints.length} entry points reached by the last verify:all run at ${record.generatedAt}, ${skipped.length} skipped)`
-    : `verify:coverage ok (${entryPoints.length} entry points: ${covered} covered by ${scenarios.length} scenarios, ${skipped.length} skipped)`,
+  `verify:coverage ok (${entryPoints.length} entry points: ${covered} covered by ${scenarios.length} scenarios, ${skipped.length} skipped)`,
 )
 for (const entry of skipped) {
   console.log(`  skipped ${entry.id}: ${entry.skip}`)

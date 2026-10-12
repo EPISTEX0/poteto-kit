@@ -19,8 +19,9 @@ const readmeSections = [
 const featureDocSections = ['Sub-features', 'How to get to it', 'Driving it']
 const indexLinePattern = /^- \[`([^`]+)`\]\(([^)]+)\) — \S/
 
-const selectorInDoc = /\[(aria-label|data-component|data-action-id)="([^"]+)"\]/g
-const attributeInMarkup = /(aria-label|data-component|data-action-id)\s*[=:]\s*\{?\s*["'`]([^"'`]+)["'`]/g
+const comparedAttributes = 'aria-label|data-component|data-action-id|role'
+const selectorInDoc = new RegExp(`\\[(${comparedAttributes})=(["'])([^"']+)\\2\\]`, 'g')
+const attributeInMarkup = new RegExp(`(?<![\\w-])(${comparedAttributes})\\s*[=:]\\s*\\{?\\s*["'\`]([^"'\`]+)["'\`]`, 'g')
 
 const errors: string[] = []
 
@@ -152,11 +153,11 @@ for (const id of docIds) {
 function checkSelectors(file: string, sourceDir: string, sourcePath: string) {
   const markup = markupSelectors(sourceDir)
   const text = readFileSync(join(docsDir, file), 'utf8')
-  const named = new Map([...text.matchAll(selectorInDoc)].map((match) => [`${match[1]}=${match[2]}`, match] as const))
+  const named = new Map([...text.matchAll(selectorInDoc)].map((match) => [`${match[1]}=${match[3]}`, match] as const))
   for (const [selector, match] of named) {
     if (!markup.has(selector)) {
       errors.push(
-        `feature-selector-drift: ${docsPath}/${file} names [${match[1]}="${match[2]}"] but nothing in ${sourcePath} sets ${match[1]}="${match[2]}"; make the doc match the markup (or restore the markup)`,
+        `feature-selector-drift: ${docsPath}/${file} names [${match[1]}="${match[3]}"] but nothing in ${sourcePath} sets ${match[1]}="${match[3]}"; make the doc match the markup (or restore the markup)`,
       )
     }
   }

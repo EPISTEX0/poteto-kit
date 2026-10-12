@@ -6,7 +6,7 @@ import { resolveChrome } from './chrome'
 import { appReady } from './selectors'
 import { passed, renderReport, type ConsoleEntry, type RunResult } from './report'
 import { buildCoverageRecord, coverageRecordPath } from './coverage-record'
-import { coverageProblem, createContext, ScenarioFailure, type Scenario } from './scenario'
+import { checkProblem, coverageProblem, createContext, ScenarioFailure, type Scenario } from './scenario'
 import { runDoctor } from './doctor'
 import { loadScenarios } from './load-scenarios'
 import { choosePort, PortRefusal } from './port'
@@ -25,7 +25,7 @@ screenshot.png, console.json, trace.json and report.md under artifacts/<timestam
 Options:
   --feature <id>      run every scenario of one feature
   --scenario <name>   with --feature, run only this scenario
-  --all               run every scenario (npm run verify:all) and write verify-coverage.json (the entry points each scenario reached) to the artifacts directory
+  --all               run every scenario (npm run verify:all) and write verify-coverage.json (the entry points each scenario reached) to the artifacts directory as an export for templates/ci/check-coverage.mjs; no gate here reads it
   --port <n>          preview port; refused with exit 3 if something already holds it
   --no-build          reuse dist/ from the last verify build instead of rebuilding
   -h, --help          show this text
@@ -155,6 +155,7 @@ async function runScenario(
   } catch (error) {
     failure = error instanceof ScenarioFailure ? error.message : `unexpected error: ${String(error)}`
   }
+  failure ??= checkProblem(checks)
   failure ??= coverageProblem(scenario, reached)
 
   await page.screenshot({ path: join(artifactDir, 'screenshot.png') })

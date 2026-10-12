@@ -15,12 +15,11 @@
     "check:deps": "depcruise src --config .dependency-cruiser.cjs --output-type err-long",
     "check:features": "tsx scripts/check-features.ts",
     "verify:coverage": "tsx scripts/verify-coverage.ts",
-    "verify:reached": "tsx scripts/verify-coverage.ts --reached",
     "test:guardrails": "tsx --test scripts/guardrails.test.ts",
     "verify": "tsx scripts/verify/cli.ts",
     "verify:all": "tsx scripts/verify/cli.ts --all",
     "verify:selftest": "tsx scripts/verify/selftest.ts",
-    "gate": "npm run lint && npm run typecheck && npm run check:deps && npm run check:features && npm run test:guardrails && npm run verify:coverage && npm run verify:all && npm run verify:reached && npm run verify:selftest"
+    "gate": "npm run lint && npm run typecheck && npm run check:deps && npm run check:features && npm run test:guardrails && npm run verify:coverage && npm run verify:all && npm run verify:selftest"
   },
   "dependencies": {
     "react": "^19.3.0",

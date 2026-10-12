@@ -44,6 +44,11 @@ export function coverageProblem(scenario: Pick<Scenario, 'covers'>, reached: Rea
   return problems.length > 0 ? `scenario ${problems.join('; ')}` : null
 }
 
+export function checkProblem(checks: readonly CheckRecord[]) {
+  const failed = checks.find((check) => !check.pass)
+  return failed ? `expectation failed: ${failed.name}` : null
+}
+
 export function createContext(page: Page) {
   const steps: StepRecord[] = []
   const checks: CheckRecord[] = []

@@ -3,6 +3,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 import tseslint from 'typescript-eslint'
 import { noComments } from './eslint-rules/no-comments.js'
 import { storeStaysPrivate } from './eslint-rules/store-stays-private.js'
+import { writerTakesData } from './eslint-rules/writer-takes-data.js'
 
 const useEffectMessage =
   'useEffect and useLayoutEffect are banned. Effects hide data flow and cause stale-state bugs that agents cannot see. Derive state during render, update it in event handlers, use useSyncExternalStore for external stores, or a ref callback for DOM subscriptions.'
@@ -18,9 +19,6 @@ const featureRegistryMessage =
 
 const clientWriterMessage =
   "Durable notes state has one writer. Import commands and queries from '@/client' (commands live in src/client/commands.ts). To change state in a new way, add a command there instead of touching the store."
-
-const clientStoreMessage =
-  'The notes store is built in src/client/commands.ts and nowhere else in src/client. Add a command there instead of building a second store.'
 
 const frameworkMessage =
   'src/framework is a standalone package: it may import only itself and npm packages. It must not know about features, the client or app code. Receive what it needs through a Feature definition or props.'
@@ -38,7 +36,7 @@ const effectSyntax = [
 
 const globSyntax = [
   {
-    selector: 'MemberExpression[object.type="MetaProperty"]:not([property.name=/^(env|url|dirname|filename)$/])',
+    selector: 'MemberExpression[object.type="MetaProperty"]:not([computed=false][property.name=/^(env|url|dirname|filename|hot)$/])',
     message: globMessage,
   },
   { selector: ':not(MemberExpression) > MetaProperty[meta.name="import"]', message: globMessage },
@@ -67,13 +65,25 @@ export default defineConfig(
   tseslint.configs.recommended,
   {
     linterOptions: { noInlineConfig: true },
-    plugins: { local: { rules: { 'no-comments': noComments, 'store-stays-private': storeStaysPrivate } } },
+    plugins: {
+      local: {
+        rules: { 'no-comments': noComments, 'store-stays-private': storeStaysPrivate, 'writer-takes-data': writerTakesData },
+      },
+    },
     rules: {
       'local/no-comments': 'error',
-      'local/store-stays-private': 'error',
       'no-restricted-imports': ['error', { paths, patterns: [...internalPatterns, ...clientPatterns] }],
       'no-restricted-syntax': ['error', ...effectSyntax, ...globSyntax],
     },
+  },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
+    rules: { 'local/store-stays-private': 'error' },
+  },
+  {
+    files: ['src/client/commands.ts'],
+    rules: { 'local/writer-takes-data': 'error' },
   },
   {
     files: ['src/framework/discover.ts'],
@@ -95,16 +105,6 @@ export default defineConfig(
     files: ['src/client/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': ['error', { paths, patterns: registryPatterns }],
-    },
-  },
-  {
-    files: ['src/client/**/*.{ts,tsx}'],
-    ignores: ['src/client/commands.ts'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        { paths, patterns: [...registryPatterns, { regex: '(^|/)create-store$', message: clientStoreMessage }] },
-      ],
     },
   },
   {

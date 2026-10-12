@@ -1,0 +1,6 @@
+
+type Reducer = (state: NotesState) => NotesState
+
+export function applyReducer(reducer: Reducer) {
+  store.set((state) => reducer(state))
+}

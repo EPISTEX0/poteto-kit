@@ -7,7 +7,7 @@
 
 # Enforcement layers
 
-Five layers, ordered strongest to weakest. Layers 1 and 2 are hard: the agent cannot ship a violation however tired or forgetful it is, because CI goes red. Layers 3 to 5 are soft: an agent can forget them or apply them inconsistently. Use soft layers on top of hard ones, never instead of them: a repo with only rules, a review bot, skills and a style guide will, sooner or later, look like trash.
+Five layers, ordered strongest to weakest. Layers 1 and 2 are hard: a tired or forgetful agent cannot ship the shapes they catch, because CI goes red. Static analysis is not sound, so they are not a boundary against deliberate evasion; list each rule's known escapes and cover them with runtime checks, verification and review. Layers 3 to 5 are soft: an agent can forget them or apply them inconsistently. Use soft layers on top of hard ones, never instead of them: a repo with only rules, a review bot, skills and a style guide will, sooner or later, look like trash.
 
 ## Matrix
 

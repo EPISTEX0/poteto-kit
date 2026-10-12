@@ -1,3 +1,3 @@
-import { resetNotes } from '@/client/commands'
+import { createNote } from '@/client/commands'
 
-export const wipeNotes = () => resetNotes([])
+export const skipTheCommands = () => createNote()

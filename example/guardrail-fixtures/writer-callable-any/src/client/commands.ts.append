@@ -1,0 +1,4 @@
+
+export function applyAny(reduce: any) {
+  store.set((state) => reduce(state))
+}

@@ -1,13 +1,14 @@
 import { useSyncExternalStore } from 'react'
+import { deepFreeze } from './deep-freeze'
 
 export function createStore<T>(initial: T) {
-  let state = initial
+  let state = deepFreeze(initial)
   const listeners = new Set<() => void>()
 
   const get = () => state
 
   const set = (update: (previous: T) => T) => {
-    state = update(state)
+    state = deepFreeze(update(state))
     listeners.forEach((listener) => listener())
   }
 
@@ -18,7 +19,7 @@ export function createStore<T>(initial: T) {
     }
   }
 
-  const use = () => useSyncExternalStore(subscribe, get)
+  const use = () => useSyncExternalStore(subscribe, get, get)
 
   return { get, set, use }
 }

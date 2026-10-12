@@ -1,7 +1,22 @@
-export const message =
-  "A store built with createStore is private to the module that builds it. Only 'store.use', 'store.get()' and calls to 'store.set(<inline function>)' may mention it: never export it, alias it, pass it or its setter around, never pass store.set anything but an inline function, and never call a function you were handed from inside that function. To change state in a new way, add a command in src/client/commands.ts whose body calls store.set((state) => ...) with the change written out, and export that command."
+import ts from 'typescript'
+import { typeServices } from './type-services.js'
 
-const inlineFunctions = new Set(['ArrowFunctionExpression', 'FunctionExpression'])
+const storeModule = '/src/shared/create-store.ts'
+
+export const message =
+  "A store built with createStore is private to the module that builds it. Only 'store.use', 'store.get()' and calls to 'store.set(...)' may mention it: never export it, alias it, destructure it, or pass it or its setter around. To change state in a new way, add a command in src/client/commands.ts whose body calls store.set((state) => ...) with the change written out, and export that command."
+
+function isTopLevel(declaration) {
+  for (let node = declaration.parent; node; node = node.parent) {
+    if (ts.isSourceFile(node)) {
+      return true
+    }
+    if (ts.isFunctionLike(node) || ts.isClassLike(node)) {
+      return false
+    }
+  }
+  return false
+}
 
 function isAllowedUse(identifier) {
   const member = identifier.parent
@@ -13,19 +28,7 @@ function isAllowedUse(identifier) {
   }
   const call = member.parent
   const isCallee = call.type === 'CallExpression' && call.callee === member
-  if (!isCallee) {
-    return false
-  }
-  if (member.property.name === 'get') {
-    return true
-  }
-  return member.property.name === 'set' && call.arguments.length === 1 && inlineFunctions.has(call.arguments[0].type)
-}
-
-function setterArgument(identifier) {
-  const member = identifier.parent
-  const call = member.type === 'MemberExpression' ? member.parent : null
-  return call?.type === 'CallExpression' && member.property.name === 'set' ? call.arguments[0] : null
+  return isCallee && (member.property.name === 'get' || member.property.name === 'set')
 }
 
 export const storeStaysPrivate = {
@@ -35,10 +38,20 @@ export const storeStaysPrivate = {
     messages: { escapes: message },
   },
   create(context) {
+    const services = typeServices(context, 'store-stays-private')
+    const checker = services.program.getTypeChecker()
     const report = (node) => context.report({ node, messageId: 'escapes' })
+    const buildsStore = (call) => {
+      const declaration = checker.getResolvedSignature(services.esTreeNodeToTSNodeMap.get(call))?.declaration
+      return (
+        declaration !== undefined &&
+        isTopLevel(declaration) &&
+        declaration.getSourceFile().fileName.replaceAll('\\', '/').endsWith(storeModule)
+      )
+    }
     return {
       CallExpression(call) {
-        if (call.callee.type !== 'Identifier' || call.callee.name !== 'createStore') {
+        if (!buildsStore(call)) {
           return
         }
         const declarator = call.parent
@@ -50,24 +63,9 @@ export const storeStaysPrivate = {
           report(declarator.id)
         }
         for (const variable of context.sourceCode.getDeclaredVariables(declarator)) {
-          for (const reference of variable.references) {
-            const { identifier } = reference
-            if (identifier === declarator.id) {
-              continue
-            }
-            if (!isAllowedUse(identifier)) {
+          for (const { identifier } of variable.references) {
+            if (identifier !== declarator.id && !isAllowedUse(identifier)) {
               report(identifier)
-              continue
-            }
-            const update = setterArgument(identifier)
-            if (update) {
-              for (const outer of context.sourceCode.getScope(update).through) {
-                const handed = outer.resolved?.defs.some((definition) => definition.type === 'Parameter')
-                const called = outer.identifier.parent.type === 'CallExpression' && outer.identifier.parent.callee === outer.identifier
-                if (handed && called) {
-                  report(outer.identifier)
-                }
-              }
             }
           }
         }

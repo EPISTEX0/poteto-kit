@@ -23,7 +23,7 @@ export type RunResult = {
 }
 
 export function passed(result: RunResult) {
-  return result.failure === null && result.consoleEntries.length === 0
+  return result.failure === null && result.consoleEntries.length === 0 && result.checks.every((check) => check.pass)
 }
 
 function cell(text: string) {

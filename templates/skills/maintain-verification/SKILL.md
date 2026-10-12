@@ -57,13 +57,13 @@ It exits non-zero and prints one line per problem: a directory with no file, a d
 
 > **Coverage rule.** Every id under `## Sub-features` (feature files) and `## Flows` (`cross-cutting-flows.md`) is covered by a scenario that declares it, or ends with `skip: <reason>`. No scenario covers an id that no file lists, no id is listed twice, and no id is both covered and marked skip.
 
-Reference implementation: `check-coverage.mjs` in this kit's `templates/ci/` (Node, no dependencies). Copy it to `scripts/check-coverage.mjs`. Scenarios declare what they prove in a manifest, `verify-coverage.json` by default (`{ "scenarios": [ { "name": "...", "covers": ["<id>"] } ] }`), or in `*.scenario.*` files that contain `covers: [...]`. Either way this script trusts the list it is given: a hand-kept manifest or a `covers` array in a source file is a claim, not a result. The stronger setup, which the runnable example uses, is for the verify command to write the manifest itself from the scenarios that ran and passed, listing an id only when an assertion tagged with that id passed; point `--manifest` at that file and run the check after the verify run:
+Reference implementation: `check-coverage.mjs` in this kit's `templates/ci/` (Node, no dependencies). Copy it to `scripts/check-coverage.mjs`. Scenarios declare what they prove in a manifest, `verify-coverage.json` by default (`{ "scenarios": [ { "name": "...", "covers": ["<id>"] } ] }`), or in `*.scenario.*` files that contain `covers: [...]`. Either way this script trusts the list it is given: a hand-kept manifest or a `covers` array in a source file is a claim, not a result. The stronger setup, which the runnable example uses, is for the verify command to write the manifest itself from the scenarios that ran and passed, listing an id only when an assertion tagged with that id passed, and to fail the run when a scenario's declared `covers` differs from what it reached; point `--manifest` at that file and run the check after the verify run, in the same job (the script believes any file it is given, so the verify command's exit code stays the authority):
 
 ```sh
 node scripts/check-coverage.mjs --features {{FEATURE_MAP_DIR}}
 ```
 
-`check-feature-map.sh` compares structure only (directories, files, index lines); it does not compare the selectors a feature file names with the markup. The example's `scripts/check-features.ts` also does that for `aria-label`, `data-component` and `data-action-id`; port it if your markup is greppable.
+`check-feature-map.sh` compares structure only (directories, files, index lines); it does not compare the selectors a feature file names with the markup. The example's `scripts/check-features.ts` also does that for `aria-label`, `data-component`, `data-action-id` and `role`; port it if your markup is greppable.
 
 Wire both as scripts (for example `check:feature-map` and `check:coverage`) and include them in `{{GATE_COMMAND}}`. Without this, the skill is a soft rule that agents will forget (see `guardrails/enforcement-layers.md`).
 

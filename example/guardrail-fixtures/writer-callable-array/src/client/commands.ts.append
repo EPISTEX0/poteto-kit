@@ -1,0 +1,4 @@
+
+export function applyAll(reducers: ((state: NotesState) => NotesState)[]) {
+  store.set((state) => reducers.reduce((next, reduce) => reduce(next), state))
+}

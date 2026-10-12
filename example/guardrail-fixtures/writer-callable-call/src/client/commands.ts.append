@@ -1,0 +1,4 @@
+
+export function applyWithCall(fn: (state: NotesState) => NotesState) {
+  store.set((state) => fn.call(null, state))
+}

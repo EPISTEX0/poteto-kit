@@ -60,6 +60,12 @@ Agents take shortcuts; make the shortcut the correct way. Follow existing conven
 
 Rule of thumb: when you observe an agent (or a reviewer) hitting the same problem twice, a new row here is the minimum; a lint rule or CI check is the goal.
 
+## Not enforced
+
+Claim in the table above only what a fixture proves. Static rules catch the common shapes a careless agent writes; they are not a boundary against deliberate evasion. List here the shapes a rule is known not to catch, and what covers them (a runtime check, a verification scenario, or a reviewer):
+
+- {{KNOWN_ESCAPE_1: for example "a re-export of the store factory through an allowed file"}}
+
 ## Verification requirement
 
 You are not done when the code is written; you are done when you have run the real app and have evidence.

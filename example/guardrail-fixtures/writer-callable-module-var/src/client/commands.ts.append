@@ -1,0 +1,10 @@
+
+let pending: ((state: NotesState) => NotesState) | null = null
+
+export function queueUpdate(fn: (state: NotesState) => NotesState) {
+  pending = fn
+}
+
+export function flushUpdate() {
+  store.set((state) => (pending ? pending(state) : state))
+}

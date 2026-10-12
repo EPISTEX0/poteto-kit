@@ -1,2 +1,2 @@
-export { createNote, resetNotes, selectNote, updateNote, useNotesState } from './commands'
+export { createNote, hydrateNotes, selectNote, updateNote, useNotesState } from './commands'
 export type { NotesState } from './commands'
