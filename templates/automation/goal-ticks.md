@@ -27,7 +27,7 @@ Rules for the goal: done criteria are observable, not "looks good"; the coordina
 
 - A tick every {{CADENCE}} (for example 30 minutes while PRs are moving, hourly overnight). Tick when something changes as well as on schedule.
 - Each tick starts by re-reading real state (PR status, CI results, the merge queue), not memory of the last tick. Facts first, then the plan.
-- Between ticks the coordinator advances the work: restack, rerun CI, open the next atomic PR, answer review feedback.
+- Between ticks the coordinator advances the work mostly by delegating it to subagents (restack, rerun CI, open the next atomic PR, answer review feedback) and checking what they report. It does little of the implementation itself.
 
 ## 3. Tick report format
 

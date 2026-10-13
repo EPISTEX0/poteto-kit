@@ -5,7 +5,7 @@
 **Why:** Lessons that stay in a conversation vanish; the same failure then recurs, and each recurrence costs a human a review comment.
 
 **In practice:**
-- After a failure caused by missing knowledge, add a rule, a gotcha line in a feature file, or a skill, following the failure loop in the `team-mode` skill.
+- After a recurring failure caused by missing knowledge, add a rule, a gotcha line in a feature file, or a skill, following the failure loop in the `team-mode` skill.
 - Prefer the hardest form that works: type or lint rule first, then CI check, then a skill (see `guardrails/review-comment-to-rule.md`).
 - Put the lesson in the same PR as the fix, with the evidence that reproduced the failure.
 

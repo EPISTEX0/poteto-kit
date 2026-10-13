@@ -67,7 +67,7 @@ Templates refer to each other by their path in this kit (for example `guardrails
 | `skills/create-verification/SKILL.md` | Meta-skill: explores the codebase, then generates `verify-app` and the feature map directory itself | `.agents/skills/create-verification/` |
 | `skills/maintain-verification/SKILL.md` | Keeps the feature map in sync with the code; points at the two CI scripts that check it | `.agents/skills/maintain-verification/` |
 | `skills/team-mode/SKILL.md` | A router skill: the non-negotiables, a trigger table pointing to leaf skills, "asking a human is the slow path", naming the data shape first, splitting work in parallel, the failure loop. Explicit invocation only | `.agents/skills/team-mode/` |
-| `skills/team-mode/principles/_principle.template.md` | Template for one principle per file; three filled principles ship beside it (`fix-root-causes.md`, `boundary-discipline.md`, `encode-lessons-in-skills.md`) | `.agents/skills/team-mode/principles/<name>.md` (do not install the underscore file) |
+| `skills/team-mode/principles/_principle.template.md` | Template for one principle per file; four filled principles ship beside it (`fix-root-causes.md`, `boundary-discipline.md`, `encode-lessons-in-skills.md`, `script-the-deterministic-parts.md`) | `.agents/skills/team-mode/principles/<name>.md` (do not install the underscore file) |
 | `skills/are-you-sure-you-need-x/SKILL.md` | A "challenge" skill for when the agent reaches for a risky API or pattern (for example `requestAnimationFrame`, `useEffect`) | `.agents/skills/are-you-sure-you-need-<x>/` |
 | `skills/CATALOG.md` | How to classify a skill library and name it flat with prefixes by owner/area; a starter catalog to fill in | `.agents/skills/CATALOG.md` |
 | `skills/investigate/SKILL.md` | "Don't guess": read the code, cite `file:line`, and reproduce before stating a root cause | `.agents/skills/investigate/` |
@@ -84,7 +84,7 @@ Templates refer to each other by their path in this kit (for example `guardrails
 | `ci/check-feature-map.sh` | Gate script (POSIX shell): every feature directory has a feature-map file and an index line, and the reverse | `scripts/check-feature-map.sh` |
 | `ci/check-coverage.mjs` | Gate script (Node, no dependencies): every entry point in the map is covered by a scenario in the manifest it reads, or marked `skip: <reason>`; fails on uncovered, unknown, duplicate and stale-skip ids. It trusts the manifest: generate it from the run (see Step 2), do not keep it by hand | `scripts/check-coverage.mjs` |
 | `automation/goal-ticks.md` | Long-horizon goals for a coordinator agent: tick cadence, report template, escalation when there is no progress, a "LAST HUMAN DEPENDENCY" note | `docs/` or the coordinator agent's prompt |
-| `automation/bug-repro.md` | An automation that tries every incoming bug report on main with the control skill and posts REPRODUCED / NOT REPRODUCED / FIXED ON MAIN / NEEDS INFO with evidence: trigger, prompt, output format, escalation rule | `docs/` or the automation's instructions |
+| `automation/bug-repro.md` | An automation that tries every incoming bug report on main with the control skill and posts REPRODUCED / NOT REPRODUCED / FIXED ON MAIN / SETUP OR DATA / NEEDS INFO with evidence, and lists related open reports so one coordinator can take the group: trigger, prompt, output format, escalation rule | `docs/` or the automation's instructions |
 | `automation/automerge-policy.md` | Which change classes may auto-merge, required signals, protected paths, revert policy, reviewing on main afterwards; fillable | `docs/automerge-policy.md` |
 
 ## Recommended order of adoption
@@ -127,7 +127,7 @@ If you run agents in cloud VMs, keep `references/cloud-environment.md` and fill 
 ### Step 3. Pillar 2: high-quality skills
 
 1. Copy `skills/investigate/SKILL.md`. Fill in `{{REPRO_SKILL}}` (`verify-app`) and `{{SUBAGENT_LIMIT}}`.
-2. Each time you observe the agent make a new behavioral mistake, use `skills/_skill-from-failure.md`: name the failure, write the smallest skill that prevents it, add an eval case that reproduces the failure, and rerun the eval. Don't write a skill library out of imagination.
+2. When a behavioral mistake recurs, or several agents make it, try the correction ladder first (`guardrails/review-comment-to-rule.md`: can the structure, a lint rule or a CI check remove it?). Use `skills/_skill-from-failure.md` only if the fix is judgment or procedure: name the failure, write the smallest skill that prevents it, add an eval case that reproduces the failure, and rerun the eval. Don't write a skill library out of imagination.
 3. Once you have a few skills, add `skills/team-mode/SKILL.md` as a router (fill the trigger table with skills you really have) and the principles in its `principles/` folder (one principle per file, linked relatively as `principles/<name>.md`; only name principles drawn from failures you have observed). Add the working-mode line to `AGENTS.md` (the template has it).
 4. For each risky API or pattern that has caused an incident (for example `requestAnimationFrame`), create an `are-you-sure-you-need-<x>` copy. If you can ban it outright with lint, do the lint first; this skill is only for legitimate exceptions.
 5. Use `skills/CATALOG.md` to track the skill library, and name skills flat with a prefix by owner or area when several people contribute.
@@ -144,7 +144,7 @@ If you run agents in cloud VMs, keep `references/cloud-environment.md` and fill 
 
 1. Copy `guardrails/AGENTS.md.template` to `AGENTS.md`. Fill in the architecture map, the "shortest path is the best path" convention (one directory per feature, discovered from reserved files, no registry), the table of banned patterns with reasons, `{{GATE_COMMAND}}`, and the PR policy. For Claude Code, also create a `CLAUDE.md` containing the single line `@AGENTS.md`.
 2. Fill in `guardrails/enforcement-layers.md`: five layers (1 codebase, 2 static analysis including lint/compiler/CI, 3 rules/review bot, 4 skills, 5 style guide). Layers 1-2 turn CI red (hard), layers 3-5 are soft. The goal: every important invariant has at least one hard layer. The two rows "Tests" and "Human review" are optional extra rows below the five layers; keep or delete them.
-3. Use `guardrails/review-comment-to-rule.md` every time you are about to write a review comment. The decision ladder (strongest first): eliminate the whole class of error with types/architecture, the compiler, lint, a CI script, a test, and only last a soft rule.
+3. Use `guardrails/review-comment-to-rule.md` when you are about to write a review comment about a mistake that recurs, or that several agents make (a one-off only needs the PR fixed). The decision ladder (strongest first): eliminate the whole class of error with types/architecture, the compiler, lint, a CI script, a test, and only last a soft rule.
 4. Read and adapt `guardrails/architecture-contract.md` if you are designing (or restructuring) an architecture: treat the agent's predictable behavior as a design input, fill in the "how we enforce it here" column and the public nouns table. This is a set of ideas and principles, not a library to install.
 5. Copy `ci/ci.yml` to `.github/workflows/ci.yml`, fill `{{WORKING_DIR}}`, `{{NODE_VERSION}}`, `{{INSTALL_COMMAND}}`, `{{GATE_COMMAND}}` and `{{ARTIFACTS_PATH}}`, delete the browser-install step if your verification does not drive a browser, and make sure the job runs your actual gate command (the one that includes the two scripts from Step 2).
 
@@ -153,9 +153,11 @@ If you run agents in cloud VMs, keep `references/cloud-environment.md` and fill 
 Only after local verification and the hard guardrails are working well should you let agents run in the cloud, automate off signals, and then consider auto-merge. Jumping straight to thousands of agents before you have trust only burns tokens. See `docs/08-scaling-to-cloud-agents.md`.
 
 1. Cloud agents: fill in `skills/verify-app/references/cloud-environment.md` (display, profile seeding, ports, artifact upload, what to mark manual).
-2. Triage off signals: `automation/bug-repro.md` tries every incoming bug report on main with the control skill and posts a verdict with evidence.
+2. Triage off signals: `automation/bug-repro.md` tries every incoming bug report on main with the control skill, posts a verdict with evidence, and lists related open reports so one coordinator can take the group.
 3. Long-horizon goals run by a coordinator agent: `automation/goal-ticks.md`. State an observable completion criterion, report ticks using the template, escalate only when the next tick shows no progress, and pin a "LAST HUMAN DEPENDENCY" note. Run the cadence with your tool's loop or schedule feature (for example `/loop`).
-4. Auto-merge: fill in `automation/automerge-policy.md` (change classes, required signals, protected paths, revert policy, review on main afterwards), and enforce it as a required status check, not as an instruction.
+4. Fuzz swarm: once `verify-app` passes its evals, run 10 or more agents (directed, plus a few random) on a build you are about to ship or a risky merge, against a non-production backend by default, and review the artifacts first and sample the diff (`docs/08-scaling-to-cloud-agents.md`). Ordinary PRs get one to a few verifiers.
+5. Standing scanner: an agent that scans for a pattern you want gone but cannot lint yet, queues each hit in a document, and you read the queue every few days for a shared cause.
+6. Auto-merge: fill in `automation/automerge-policy.md` (change classes, required signals including the agent risk rating (low only at first), protected paths, revert policy, review on main afterwards), and enforce it as a required status check, not as an instruction.
 
 ## Placeholders
 
@@ -368,7 +370,7 @@ Generated by grepping every `{{...}}` in `templates/` (all files except this REA
 | `{{MAX_RUN_MINUTES}}` | Wall-time budget of one repro run. | `automation/bug-repro.md` |
 | `{{NEEDS_INFO_DAYS}}` | Days without a reply before NEEDS INFO escalates. | `automation/bug-repro.md` |
 | `{{ESCALATION_EXTRA}}` | Extra escalation conditions of your own. | `automation/bug-repro.md` |
-| `{{SAMPLE_RULE}}` | How much of the NOT REPRODUCED and FIXED ON MAIN verdicts a person re-checks. | `automation/bug-repro.md` |
+| `{{SAMPLE_RULE}}` | How much of the NOT REPRODUCED, FIXED ON MAIN and SETUP OR DATA verdicts a person re-checks. | `automation/bug-repro.md` |
 | `{{CLASS_E}}` | A change class of your own in the auto-merge table. | `automation/automerge-policy.md` |
 | `{{ATOMIC_LIMIT}}` | What an atomic PR may touch for auto-merge. | `automation/automerge-policy.md` |
 | `{{ALLOWED_AUTHORS}}` | Authors or bots allowed to auto-merge. | `automation/automerge-policy.md` |
@@ -377,9 +379,10 @@ Generated by grepping every `{{...}}` in `templates/` (all files except this REA
 | `{{CI_PATHS}}` | Protected paths: CI workflows, the gate, gate scripts. | `automation/automerge-policy.md` |
 | `{{LINT_CONFIG_PATHS}}` | Protected paths: lint, boundary and ignore configuration. | `automation/automerge-policy.md` |
 | `{{AUTH_PATHS}}` | Protected paths: authentication, permissions, secrets. | `automation/automerge-policy.md` |
-| `{{DATA_PATHS}}` | Protected paths: schema, migrations, data deletion. | `automation/automerge-policy.md` |
+| `{{DATA_PATHS}}` | Protected paths: schema, migrations, anything that deletes or rewrites user data, moves money, or sends messages outside the system. | `automation/automerge-policy.md` |
 | `{{DEPENDENCY_PATHS}}` | Protected paths: manifests and lockfiles. | `automation/automerge-policy.md` |
 | `{{DEPLOY_PATHS}}` | Protected paths: infrastructure, release, deploy. | `automation/automerge-policy.md` |
+| `{{UNVERIFIABLE_PATHS}}` | Protected paths: code whose result no program can check (for example medical, legal or financial output). | `automation/automerge-policy.md` |
 | `{{MORE_PROTECTED_PATHS}}` | Further protected paths. | `automation/automerge-policy.md` |
 | `{{REVERT_LIMIT}}` | Reverts of one class that switch that class off. | `automation/automerge-policy.md` |
 | `{{REVERT_PERIOD}}` | Period over which reverts are counted. | `automation/automerge-policy.md` |
@@ -388,6 +391,9 @@ Generated by grepping every `{{...}}` in `templates/` (all files except this REA
 | `{{LEDGER_LOCATION}}` | Where the auto-merge ledger is kept. | `automation/automerge-policy.md` |
 | `{{PR}}` | A PR link (ledger row). | `automation/automerge-policy.md` |
 | `{{WIDEN_CRITERION}}` | What the ledger must show before a class is widened. | `automation/automerge-policy.md` |
+| `{{MAX_AUTO_RISK}}` | The highest risk rating that may auto-merge (default: low; medium only through the ledger). | `automation/automerge-policy.md` |
+| `{{RISK_REVIEWER}}` | The agent review that rates every PR's risk. | `automation/automerge-policy.md` |
+| `{{MORNING_READ_CRITERION}}` | What the ledger must show before post-merge review becomes a morning read of the commit history. | `automation/automerge-policy.md` |
 
 ### Generic words in HOW TO USE comments
 
@@ -410,7 +416,7 @@ Short lower-case `{{...}}` text is an id, a cell or a word to replace with your 
 | `{{Display name}}`, `{{Button label}}`, `{{label}}`, `{{region}}`, `{{visible result}}` | Visible text, a button or ARIA label, a screen region, or what the user sees on arrival. | `features/_feature.template.md` |
 | `{{launch}}`, `{{a fresh profile}}`, `{{restart the app}}`, `{{complete onboarding}}`, `{{reach the main screen}}`, `{{steps}}`, `{{one line}}` | Short step or sentence in a flow or feature file. | `features/_feature.template.md`, `features/cross-cutting-flows.md` |
 | `{{x}}`, `{{app}}`, `{{name}}`, `{{prefix}}`, `{{path}}`, `{{kind}}`, `{{owner}}`, `{{area}}`, `{{status}}`, `{{list}}`, `{{ids}}`, `{{date}}`, `{{scores}}`, `{{another}}`, `{{scope}}`, `{{why}}`, `{{link}}`, `{{examples}}`, `{{extra conditions}}` | A cell or word in a table or record: a skill name, prefix, owner, area, status, list, date, scores, reason, link or condition. | `automation/automerge-policy.md`, `CATALOG.md`, `_skill-from-failure.md`, `team-mode/principles/_principle.template.md`, `features/README.md` |
-| `{{yes / no}}`, `{{draft / active}}`, `{{ok / finding}}`, `{{no / yes: link}}`, `{{A/B/C}}`, `{{1-6}}`, `{{risky API}}`, `{{your skill}}` | A choice to make in a table cell (yes or no, a status, a class, a rung number, an API, one of your own skills). | `automation/automerge-policy.md`, `guardrails/review-comment-to-rule.md`, `CATALOG.md` |
+| `{{yes / no}}`, `{{draft / active}}`, `{{ok / finding}}`, `{{low / medium}}`, `{{no / yes: link}}`, `{{A/B/C}}`, `{{1-6}}`, `{{risky API}}`, `{{your skill}}` | A choice to make in a table cell (yes or no, a status, a class, a rung number, an API, one of your own skills). | `automation/automerge-policy.md`, `guardrails/review-comment-to-rule.md`, `CATALOG.md` |
 | `{{...}}` | Whatever the surrounding sentence asks for. | `evals/judge-prompt.md`, `CATALOG.md`, `_skill-from-failure.md`, `features/_feature.template.md` |
 | `{{what shows with no data}}`, `{{what shows when it fails}}`, `{{what you changed and why}}`, `{{how to force a failure}}`, `{{switch, then come back}}`, `{{observable behavior}}`, `{{skill version / commit}}`, `{{task dir name (neutral!)}}`, `{{things learned the hard way}}` | A short hint sentence; replace it with your own text. | `evals/scoreboard.template.md`, `_skill-from-failure.md`, `features/_feature.template.md`, `features/cross-cutting-flows.md` |
 

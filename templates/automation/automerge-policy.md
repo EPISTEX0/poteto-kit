@@ -19,7 +19,7 @@ Classify by the files the diff touches, mechanically. When a diff spans classes,
 | **A. No runtime effect** | docs, comments that follow the comment rule, test-only changes, feature-map corrections | {{yes / no}} | {{extra conditions}} |
 | **B. Mechanical** | formatter output, a rename done by a codemod, generated files regenerated from their source, patch-level dependency bumps with an unchanged lockfile shape | {{yes / no}} | {{for example: the generator command is in the PR and reproduces the diff}} |
 | **C. One feature, small** | a behavior change inside one `{{FEATURES_DIR}}/<feature-id>/` directory and its feature-map file | {{yes / no}} | {{for example: the evidence report covers every entry point the changed feature file lists}} |
-| **D. Shared or sensitive** | `{{SHARED_DIR}}`, the framework package, public contracts, config, anything on the protected list in section 3 | **never** | A human approves |
+| **D. Shared, sensitive or not checkable** | `{{SHARED_DIR}}`, the framework package, public contracts, config, anything on the protected list in section 3, which includes code whose result no program can check | **never** | A human approves |
 | {{CLASS_E}} | {{examples}} | {{yes / no}} | {{extra conditions}} |
 
 ## 2. Required signals (all of them, on the PR head commit)
@@ -31,6 +31,7 @@ Classify by the files the diff touches, mechanically. When a diff spans classes,
 5. **Review signals clean:** {{AI_REVIEW_TOOL}} has no unresolved blocking finding, no open human comment, and the codeowner rules for the touched paths are satisfied.
 6. **Author allowed:** the PR author or bot is on the list {{ALLOWED_AUTHORS}}.
 7. **Not paused:** the kill switch ({{KILL_SWITCH}}) is off.
+8. **Risk rating within the ceiling:** the risk rating from {{RISK_REVIEWER}} (an agent review of this PR) is at most {{MAX_AUTO_RISK}} (default: low; raise the ceiling to medium only through section 6), and it names what the change touches and why it chose that level. The rating never overrides a protected path or a class set to no or never.
 
 The check that computes eligibility is `{{AUTOMERGE_CHECK}}`. It posts one required status, `automerge-eligible`, with the class and the failing signal if any. Only that status turns auto-merge on.
 
@@ -44,9 +45,10 @@ A diff touching any of these is class D, whoever wrote it:
 | `{{LINT_CONFIG_PATHS}}` (lint rules, import-boundary config, ignore lists) | Same: they define the hard layers |
 | `AGENTS.md`, `{{SKILLS_DIR}}/**`, this file | They change how every agent behaves |
 | `{{AUTH_PATHS}}` (authentication, permissions, secrets handling) | Security |
-| `{{DATA_PATHS}}` (schema, migrations, anything that deletes or rewrites user data) | Hard to undo |
+| `{{DATA_PATHS}}` (schema, migrations, anything that deletes or rewrites user data, moves money, or sends messages outside the system) | Hard to undo |
 | `{{DEPENDENCY_PATHS}}` (manifests, lockfiles) except what class B allows | Supply chain |
 | `{{DEPLOY_PATHS}}` (infrastructure, release, deploy configuration) | Production blast radius |
+| `{{UNVERIFIABLE_PATHS}}` (code whose result no program can check, for example medical, legal or financial output) | Verification stops a bad change before merge; where no program can check the result, a human has to. Irreversible effects such as data loss are covered by the `{{DATA_PATHS}}` row |
 | {{MORE_PROTECTED_PATHS}} | {{why}} |
 
 The protected list is itself protected: changing it needs a human.
@@ -65,15 +67,16 @@ The protected list is itself protected: changing it needs a human.
 Auto-merged does not mean unreviewed forever; the review moves after the merge.
 
 - Every auto-merged PR is listed in the ledger (section 6) and reviewed by {{POST_MERGE_REVIEWER}} within {{POST_MERGE_WINDOW}}. The reviewer is a human, or an AI reviewer on a different model than the one that wrote the change.
-- The reviewer checks: is the evidence real (artifact paths open and show the claimed end state), did the gate really cover the change, was the class right, and is there a lesson to promote to a hard rule (see `guardrails/review-comment-to-rule.md`).
+- The reviewer checks: is the evidence real (artifact paths open and show the claimed end state), did the gate really cover the change, was the class right, was the risk rating right, and is there a lesson to promote to a hard rule (see `guardrails/review-comment-to-rule.md`).
+- **Morning read (when verifier agents run on every PR).** If every PR already went through runtime verification (verifier agents that fuzz the running app, fix what they find and repeat until the PR can land), the post-merge review can be a morning read of the commit history: scan what landed overnight, one line per commit, open the ones that look off, and revert, modify, or add a lint rule so the problem cannot recur. This is where the curve leads once the environment and the verification are strong. Start with the ledger-based review above, and switch to the morning read only when the ledger shows {{MORNING_READ_CRITERION}} (for example a stated number of consecutive clean post-merge reviews). Make the switch in its own PR that edits this file. Record each morning read in the ledger (section 6), in the post-merge review result: the commits you read and what you reverted, changed or turned into a lint rule.
 - A finding that a human would have blocked is a miss: revert if it matters, then change the policy or the gate so it cannot recur. A policy that never changes after a miss is not being run.
 
 ## 6. Ledger and widening
 
 Keep one row per auto-merged PR in {{LEDGER_LOCATION}}:
 
-| Date | PR | Class | Evidence link | Post-merge review result | Reverted? |
-| --- | --- | --- | --- | --- | --- |
-| {{DATE}} | {{PR}} | {{A/B/C}} | {{link}} | {{ok / finding}} | {{no / yes: link}} |
+| Date | PR | Class | Risk rating | Evidence link | Post-merge review result | Reverted? |
+| --- | --- | --- | --- | --- | --- | --- |
+| {{DATE}} | {{PR}} | {{A/B/C}} | {{low / medium}} | {{link}} | {{ok / finding}} | {{no / yes: link}} |
 
-Widen a class (or add one) only when the ledger shows {{WIDEN_CRITERION}} (for example a stated number of consecutive merges with clean post-merge reviews and no reverts), and record the change in this file in its own PR. Narrow it at the first miss that matters.
+Widen a class (or add one) only when the ledger shows {{WIDEN_CRITERION}} (for example a stated number of consecutive merges with clean post-merge reviews and no reverts), and record the change in this file in its own PR. Raise {{MAX_AUTO_RISK}} only when the ledger shows {{WIDEN_CRITERION}} for PRs at the current ceiling. Narrow either one at the first miss that matters.

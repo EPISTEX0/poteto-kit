@@ -38,6 +38,6 @@ Layers 1 and 2 make CI red. Layers 3 to 5 do not. When someone says "we have rul
 
 - An invariant with no hard layer is a debt; promote it with `review-comment-to-rule.md`.
 - The tech stack is itself a layer: a stricter compiler or type system gives you hard checking for free (a language whose compiler enforces memory safety, for instance, lets you trust "it compiles" more).
-- The worst place to be is enforcing invariants by a human reading code in review. Every time a human has to say "do not do this", treat it as a smell and promote the rule.
+- The worst place to be is enforcing invariants by a human reading code in review. When a human has to say "do not do this" again, or about a mistake several agents make, treat it as a smell and promote the rule.
 - Scale agent autonomy only as far as the hard layers cover: supervised local work needs few; many parallel or cloud agents, automations and auto-merge need most important invariants hard.
 - Re-fill this matrix after any incident that reached production.

@@ -18,6 +18,7 @@ The most important skill in working with agents is **verification**: the agent h
 A good control skill is a *directory*, not a prompt:
 
 - **Parts:** `SKILL.md`, a CLI, a small library, `references/`, and `test/`. The CLI has a `--help` that lists commands, flags, and examples, and it has its own tests.
+- **Why it is a CLI.** Lauren's account, on Matt Pocock's live stream ([live](https://www.youtube.com/watch?v=MN9dGgmLyso)): without one, every agent builds its own throwaway verify script, differently each time, and the next agent discards it. That is slow and burns context. The CLI holds the deterministic parts once, so every agent that uses the skill gets the same tested step, and the skill text keeps only the judgment (see [04](04-skills-from-failures.md)).
 - **The description says when to use it and when not to.** For example: use it to drive a running dev build, take screenshots, click, type, read the accessibility tree, run JS, and check visible state; inside a cloud agent's VM, skip it unless asked. Whether the agent may load it on its own is a separate choice. The default for a control skill is yes (`disable-model-invocation: false`), because its job is to fire when the agent is about to say "done" or receives a bug report, without anyone remembering to ask. Make it explicit-only when driving it is costly or touches something shared (a live session, a paid environment, a cloud VM where it should stay out unless asked): Claude Code and Cursor honour `disable-model-invocation: true` in the frontmatter, and Codex uses `policy.allow_implicit_invocation: false` in the skill's `agents/openai.yaml`. Router (mode) skills such as `team-mode` are always explicit-only.
 - **Capabilities:** inspect the DOM, take screenshots, click, type, read the accessibility tree, run JS, profile, throttle CPU/network, stream console or network, and manage isolated parallel instances.
 - **Pick a flow:** detect whether you are in a worktree or the main checkout (in a worktree, `.git` is a file, not a directory). The main checkout uses a fixed control port and a shared profile. Any other checkout is named: either the CLI lives in each worktree and every command takes a worktree flag, or the CLI runs from the main checkout and takes `--target <checkout>` to drive another checkout or worktree (artifacts land with the CLI; a detached target is labelled by the remote branches that contain its commit). Either way the instance has its own derived port and an isolated profile, so parallel agents don't fight over your working session.
@@ -58,13 +59,14 @@ Why these designs make sense:
 12. Build on what the team already does. Before writing the CLI, look for their own verification (per-ticket browser scripts, PDF or report builders, an evidence folder). Port their helpers, keep their report format, and replace the numbers they type by hand with data the CLI measures.
 13. To compare with the state before a change, add a throwaway worktree at the merge-base, install, run the same scenario with `--target`, compare, and remove it (recipe B in [templates/skills/verify-app/SKILL.md](../templates/skills/verify-app/SKILL.md)).
 14. Optional: a readable export, rendered from `report.json` and printed to PDF by the browser that drove the run ([templates/skills/verify-app/references/evidence-export.md](../templates/skills/verify-app/references/evidence-export.md)). Provision the login with [templates/skills/verify-app/references/test-account.md](../templates/skills/verify-app/references/test-account.md).
+15. Once the skill passes its evals, scale it out: run it on many agents at once as a fuzz swarm and review the videos and screenshots first, sampling the diff ([08](08-scaling-to-cloud-agents.md#fuzz-swarm-verification-at-scale)).
 
 ## Anti-patterns
 
 - You are still the one copy-pasting screenshots and console errors to the agent.
 - The agent reports "found the cause" based only on a screenshot or a guess, with no trace and no real run.
 - The verification skill doesn't know how to *get to* the feature it needs to check (see [03](03-feature-map.md)).
-- Trusting the verification skill without ever evaluating it.
+- Trusting the verification skill without ever evaluating it, or fanning it out to a swarm of agents before it has been evaluated.
 - Treating "it runs" as "the code is good" and skipping architectural guardrails.
 - A control skill that silently falls back to the default instance/port when a flag is missing, so the agent can drive your session by mistake.
 - Several agents sharing one profile and one port; one agent's verification run corrupts another's.

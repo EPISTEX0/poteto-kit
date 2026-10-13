@@ -9,7 +9,7 @@ disable-model-invocation: true
 2. Replace {{OWNER}} (a person, team or area), {{SKILLS_DIR}} (default .agents/skills) and the rows of the triggers table with skills that exist in your catalog (see skills/CATALOG.md). Delete rows you do not have yet; add rows when you write a new leaf skill.
 3. Install it as .agents/skills/team-mode/ with its principles/ folder inside (see the install table in templates/README.md). Keep the folder flat: do not group skills in nested folders, because tools differ in whether they find them.
 4. Frontmatter: `name` (must equal the folder) and `description` work everywhere. `disable-model-invocation: true` makes the skill load only on an explicit /team-mode (honoured by Claude Code and Cursor); Codex ignores the key, so there add agents/openai.yaml with `policy: { allow_implicit_invocation: false }`. No other keys are needed. For a one-line nudge on every new task, put a line in AGENTS.md instead (the guardrails/AGENTS.md.template has a "Working mode" line for it).
-5. Principles: principles/ ships three filled principles (linked below) and _principle.template.md for new ones. Keep, edit or delete the three, create one file per new principle, link every one in the Principles section, and do not install the underscore template file.
+5. Principles: principles/ ships four filled principles (linked below) and _principle.template.md for new ones. Keep, edit or delete the four, create one file per new principle, link every one in the Principles section, and do not install the underscore template file.
 6. The failure loop below is inlined so this skill stands alone. The longer worksheet is skills/_skill-from-failure.md in this kit; keep it as a process doc, not as an installed skill.
 7. Delete this comment block when done.
 -->
@@ -71,4 +71,5 @@ Read all of these at the start of a multi-step task. Each is one file in `princi
 - [fix-root-causes](principles/fix-root-causes.md)
 - [boundary-discipline](principles/boundary-discipline.md)
 - [encode-lessons-in-skills](principles/encode-lessons-in-skills.md)
+- [script-the-deterministic-parts](principles/script-the-deterministic-parts.md)
 - {{ADD_YOUR_PRINCIPLES: one link per principle file}}

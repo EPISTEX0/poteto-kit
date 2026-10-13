@@ -1,6 +1,6 @@
 <!-- HOW TO USE:
 1. Keep this next to AGENTS.md. Use it as a checklist whenever you (a human) are about to leave, or have just left, a review comment, and whenever an agent repeats a mistake.
-2. Treat each review comment that states a rule as a bug report against your environment, not against the PR. Fix the PR, then fix the environment using the ladder below.
+2. Treat a review comment that states a rule as a bug report against your environment, not only against the PR. Fix the PR. Fix the environment using the ladder below when the mistake recurs, or several agents make it, or one miss is costly or dangerous.
 3. Fill the "Rules we promoted" table as you go; it is the audit trail of how hard your codebase has become.
 4. {{PLACEHOLDERS}} in the examples are for your repo's real commands and paths.
 -->
@@ -12,6 +12,8 @@ Every time a human has to read code and write "you should not do this", that is 
 ## The decision ladder (strongest first)
 
 Stop at the first rung that works.
+
+This is the detailed version of the four-step correction ladder in `docs/06-guardrail-layers.md`: its step 1 (make the mistake impossible) is rung 1, step 2 (make CI catch it) is rungs 2 to 5, and step 3 (a skill or rule) is rung 6. Its step 4, a human catching it in review, is what remains when none of the six work.
 
 1. **Eliminate the class.** Change types, architecture or API design so the mistake cannot be expressed. Example: a single typed IPC module so there is nothing to import across processes; a `<Feature>` factory that requires a feature id that has a feature-map file.
 2. **Compiler / type check.** Make the type system or compiler diagnostics reject it (strict flags, branded types, exhaustive checks, borrow checker in Rust-like stacks). Hard: the build fails.

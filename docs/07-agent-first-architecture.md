@@ -11,6 +11,14 @@ An agent does fairly well in a brownfield codebase that already has guardrails. 
 - Guardrails built for the contributor with the *least* context work for agents too. Mature engineering organizations design frameworks, conventions and credential limits so that a newcomer's honest mistake cannot reach production. An agent arrives the same way: a narrow prompt and no full model of the system. If your codebase already has that level of infrastructure, agents do reasonably well, and you can always add more.
 - A greenfield vibe-coded project has no guardrails. Each task gets solved the most convenient way ("organic architecture"), so the codebase gradually spirals out of control: humans don't understand it, agents optimize for shortcuts, and you pay the price. So start a codebase with very strong constraints, and for an app that is already vibe-coded, invest in refactoring it into a constrained structure. The investment (tokens, effort) is big but worth it: afterwards you barely have to read each change, and less experienced teammates (PMs, designers, new engineers) can contribute at a high level too.
 
+### The codebase is the agent's memory
+
+An agent starts each session without remembering the last one. What it has is your code, and it extends what it finds there. In Lauren Tan's words, "your codebase is a form of memory to agents!" ([tweet](https://x.com/poteto/status/2109699980248408574)) Whatever patterns the repo holds, good or bad, are the ones that get repeated.
+
+- **Every bad pattern in the code is a future copy.** A nit, an annoyance, a mistake you watched an agent make: once the pattern is in the code, the next agent finds it and copies it. Turn it into a constraint (the correction ladder in [06](06-guardrail-layers.md), which also says when a mistake is worth one) and fix the existing instances in the same change, or it spreads.
+- **That is why so much of the work is refactoring.** Lauren says "that's why most of the volume of PRs i land are refactoring" ([tweet](https://x.com/poteto/status/2109361189071499640)). A refactor edits the agent's memory: it removes the bad examples and the second way of doing the same thing, so the nearest pattern to copy is the right one.
+- **The finish line is a codebase locked down enough that a low-context agent can one-shot a good PR.** Lauren puts the goal as a codebase "locked down enough that even agents with little context can one shot a high quality PR" ([tweet](https://x.com/poteto/status/2109699980248408574)). A fresh agent with a narrow prompt and no history opens a PR that passes the gate and that you would merge. That is the contributor context model below, taken to its end.
+
 ### The contributor context model
 
 The assumption: many contributors (human or agent) arrive with a narrow prompt, a few nearby files and *no full model* of the application. The goal: turn the locally obvious change into the globally correct change.
@@ -61,8 +69,8 @@ Each feature is a noun with a conventional way to create it, so most work fits i
 2. List the core "nouns" of your product (analogous to Feature, Entrypoint, a repeated noun such as a card or widget, Client, Host) and decide on *exactly one* way to create each kind.
 3. Co-locate: everything for a feature (UI, logic, tests) lives in one directory.
 4. Write architecture constraints as automated checks: ban cross-imports between layers, and ban APIs or patterns the team has been bitten by. See how the gates are wired in [templates/ci/ci.yml](../templates/ci/ci.yml) and [templates/guardrails/enforcement-layers.md](../templates/guardrails/enforcement-layers.md); [09](09-other-stacks.md) names the import-boundary and banned-API tools for each language, and how reserved-file discovery looks in different frameworks.
-5. For every bad agent behavior you observe, add a lint rule or CI check (see [06](06-guardrail-layers.md)). Don't just write it in AGENTS.md ([templates/guardrails/AGENTS.md.template](../templates/guardrails/AGENTS.md.template)).
-6. Test the "shortest path": ask the agent to build a new feature and see whether it walks into the right structure on its own. If it takes another route, your structure is rewarding the wrong path.
+5. For every bad agent behavior worth a constraint (see the correction ladder in [06](06-guardrail-layers.md)), add a lint rule or CI check. Don't just write it in AGENTS.md ([templates/guardrails/AGENTS.md.template](../templates/guardrails/AGENTS.md.template)). Fix the existing copies of the pattern in the same change: a rule against something the repo still does in twenty places tells the next agent that the twenty are fine.
+6. Test the "shortest path": give a fresh agent, with a narrow prompt and no history, a small feature or bug, and see whether it opens a good PR on the first try and walks into the right structure on its own. If it takes another route, your structure is rewarding the wrong path: find the pattern it copied and turn it into a constraint.
 7. In a greenfield project, put these constraints in place *before* you vibe-code much. In brownfield, start where regressions happen most.
 8. See a small version in [example/README.md](../example/README.md) (a feature is a directory, `framework/` never imports the app, `client/` is the only writer, and adding a feature means adding a directory).
 
@@ -73,6 +81,7 @@ Each feature is a noun with a conventional way to create it, so most work fits i
 - Architecture boundaries that exist only in documentation, with no automated check.
 - Letting the agent write historical code comments that then stay behind for posterity.
 - Copying someone else's ban list wholesale instead of basing it on your own repo's real failures.
+- Fixing a bad pattern where you noticed it and leaving the other copies in the repo for the next agent to find.
 - Each durable value written from many places; nobody is the "obvious writer".
 - Adding a feature by editing a shared registry file (inventory) instead of adding isolated files.
 - A framework that imports application code back, or an unsafe shortcut that is only blocked without naming the supported path.

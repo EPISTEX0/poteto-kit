@@ -20,7 +20,7 @@ A skill library grows past what anyone remembers. This file fixes the vocabulary
 | **Migrations** | Repeatable large mechanical changes, with a verification step | `<from>-to-<to>-migration`, `convert-<x>-to-<y>` | `{{MIGRATION_EXAMPLE}}` |
 | **QA and design** | Check the result against design intent and visual quality | `<role>-qa-pass`, `<x>-linter`, `autofix-<x>` | `designer-qa-pass`, `design-implementation-linter` |
 | **Mode** (router) | A router that sets the way of working and sends situations to leaves. Explicit invocation only | `<owner>-mode` | `team-mode` |
-| **Principles** | One rule of judgment per file, cited by decisions. Files inside the router skill, not skills of their own | `<router>/principles/<name>.md` | `team-mode/principles/fix-root-causes.md`, `boundary-discipline.md`, `encode-lessons-in-skills.md` |
+| **Principles** | One rule of judgment per file, cited by decisions. Files inside the router skill, not skills of their own | `<router>/principles/<name>.md` | `team-mode/principles/fix-root-causes.md`, `boundary-discipline.md`, `encode-lessons-in-skills.md`, `script-the-deterministic-parts.md` |
 | **Playbooks** | Step-by-step procedures a router or leaf points at. Files inside that skill, not skills of their own. This kit ships none; add one when a procedure repeats | `<skill>/playbooks/<name>.md` | `team-mode/playbooks/prototype.md`, `bake-off.md` (yours to write) |
 | **Investigation** | Find the cause of something, with evidence | `investigate`, `investigate-<thing>` | `investigate`, `investigate-reported-issue` |
 

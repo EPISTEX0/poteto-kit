@@ -2,7 +2,7 @@
 1. Use this when you have a control skill (verify-app) with a feature map that works locally, and incoming bug reports pile up faster than people can try them. The automation answers one question per report: does this reproduce on main, with evidence? It does not diagnose or fix.
 2. Prerequisites: verify-app runs from a cold start, its feature map exists (references/features/), and the VM or runner can run it (see references/cloud-environment.md in verify-app). Do not start this before you trust single-agent verification; see docs/08-scaling-to-cloud-agents.md.
 3. Fill the {{PLACEHOLDERS}}. Wire the trigger with whatever event or schedule feature your agent platform has (issue webhook, label automation, scheduled poll, chat integration). Paste the prompt in section 3 as the automation's instructions.
-4. Give it the narrowest permissions that work: read the repo, run the app, comment on the report. No push, no merge, no label other than the ones named below.
+4. Give it the narrowest permissions that work: read the repo, run the app, read other open reports, comment on the report. No push, no merge, no label other than the ones named below.
 5. Delete this comment block when done.
 -->
 
@@ -16,6 +16,7 @@ Why: a bug report that sits unreproduced costs a human the first ten minutes of 
 - **Also on:** a new comment from the reporter on a report currently marked NEEDS INFO.
 - **Do not run on:** reports labelled `{{SECURITY_LABEL}}` or that look like a security or privacy issue (credentials, personal data, an exploit). Route those to {{TRIAGE_OWNER}} privately; artifacts could leak the sensitive data.
 - **Dedupe:** if the same report already has a verdict comment for the same commit, do nothing. A new run is justified only by a new commit on main or new information from the reporter.
+- **Group related reports:** identical reports are deduped above, but related ones (the same feature, or symptoms that look alike, for example 30 reports that the app is slow) are not the same report. Do not hand each to its own fixing agent. List them under "Related" in your comment so that one coordinator can take the whole group. Slightly different reports read together often show that the cause sits higher up than any single report suggests.
 - **Budget:** stop after {{MAX_RUN_MINUTES}} minutes of wall time and post what you have.
 
 ## 2. Environment
@@ -39,10 +40,18 @@ Goal: say, with evidence, whether it reproduces on the current main. You do not 
    "How to get to it" for the sub-feature, and perform the reported action. Capture a screenshot before and
    after, console output, and failed network requests. Follow every entry point of that sub-feature that the
    report could be about, not only the first one.
-4. If it does not reproduce on main and the report names an older version or commit, check out that build
+4. If the report depends on data, settings, account state or an installed dependency that your clean setup
+   does not have, build a synthetic equivalent and repeat the steps with it. Never use the reporter's real
+   data or credentials. If the symptom appears with data or settings the app supports, the verdict is
+   REPRODUCED, and you list that input under Steps run as a precondition. Only when the symptom appears solely
+   with an input the app does not support (a required dependency that is missing, a configuration it does
+   not support, data corrupted outside the app) is the verdict SETUP OR DATA.
+5. If it does not reproduce on main and the report names an older version or commit, check out that build
    and repeat the same steps. Reproducing there and not on main means FIXED ON MAIN; if you can cheaply find
    the first commit on main that no longer shows it, name it, otherwise leave it out.
-5. Choose exactly one verdict from the list in section 4, post the comment in the exact format of section 5,
+6. Search the tracker for other open reports that map to the same feature or describe a similar symptom
+   (read-only). List their links, one line each, under Related. Do not merge, close or comment on them.
+7. Choose exactly one verdict from the list in section 4, post the comment in the exact format of section 5,
    and apply the label that matches. Stop.
 
 Rules: facts only under Observed. Quote the steps you actually ran, from app start. Do not guess a root
@@ -57,6 +66,7 @@ the escalation rule. Leave nothing running; delete temporary files.
 | **REPRODUCED** | The reported symptom appears on main when the reported steps are followed. | Steps, the screenshot or log that shows the symptom, commit |
 | **NOT REPRODUCED** | The steps were followed exactly and the symptom is absent on main, and no older build was named or the older build does not show it either. | Exact steps, evidence of the end state, commit, the build(s) tried |
 | **FIXED ON MAIN** | The symptom reproduces on the reported older version or commit and is absent on main. | Evidence from both builds, both commits, the fixing commit if found |
+| **SETUP OR DATA** | The symptom is absent on a clean main and appears only with an input the app does not support: a required dependency that is missing, an unsupported configuration, or data corrupted outside the app. If it reproduces with data or settings the app supports, it is REPRODUCED, not this. | The unsupported input named, shown with a synthetic equivalent (never the reporter's real data or credentials), or an error that names the missing piece. Without that evidence, use NOT REPRODUCED |
 | **NEEDS INFO** | The report cannot be mapped to a feature or cannot be followed. | Up to three concrete questions, and what you already tried |
 
 BLOCKED (the app could not be run) is not a verdict about the bug. It is an escalation (section 6).
@@ -64,20 +74,21 @@ BLOCKED (the app could not be run) is not a verdict about the bug. It is an esca
 ## 5. Output format (one comment per report)
 
 ```text
-## Bug repro: <REPRODUCED | NOT REPRODUCED | FIXED ON MAIN | NEEDS INFO>
+## Bug repro: <REPRODUCED | NOT REPRODUCED | FIXED ON MAIN | SETUP OR DATA | NEEDS INFO>
 - Report: <link>. Mapped to: <feature-id> / <sub-feature-id> because <visible text or screen region matched>
 - Build: main at <sha>, <clean|dirty>, launched with `<exact command>`. Reported version: <version, sha, or "not stated">
 - Steps run: 1. ... 2. ... (what you actually did, from app start)
 - Expected: <what the report says should happen>
 - Observed: <what happened, facts only>
 - Evidence: <link> (screenshot before), <link> (screenshot after), <link> (console log), <link> (failed requests)
+- Related: <links to other open reports for the same feature or a similar symptom, or "none found">
 - Other build (FIXED ON MAIN only): <sha or version>, same steps, <observed>, <links>
 - Not covered: <entry points or variants not tried, each with the reason; repeat any `skip: <reason>` from the feature file>
 - Questions (NEEDS INFO only): 1. ... 2. ...
-- Next: <REPRODUCED: ready for the `investigate` skill with these artifacts | NOT REPRODUCED: suggest closing after {{NEEDS_INFO_DAYS}} days without new information | FIXED ON MAIN: suggest closing, link the fixing commit | NEEDS INFO: waiting on the reporter>
+- Next: <REPRODUCED: ready for the `investigate` skill with these artifacts, together with every report under Related, not this one alone | NOT REPRODUCED: suggest closing after {{NEEDS_INFO_DAYS}} days without new information | FIXED ON MAIN: suggest closing, link the fixing commit | SETUP OR DATA: tell the reporter what differs and how to check it | NEEDS INFO: waiting on the reporter>
 ```
 
-Labels: `repro:reproduced`, `repro:not-reproduced`, `repro:fixed-on-main`, `repro:needs-info` (create these once). Never close the report yourself.
+Labels: `repro:reproduced`, `repro:not-reproduced`, `repro:fixed-on-main`, `repro:setup-or-data`, `repro:needs-info` (create these once). Never close the report yourself.
 
 ## 6. Escalation rule
 
@@ -93,6 +104,6 @@ Everything else is handled by the comment alone; do not interrupt a person for a
 
 ## 7. Keep it honest
 
-- Sample the verdicts: a person re-checks {{SAMPLE_RULE}} of the NOT REPRODUCED and FIXED ON MAIN verdicts each week. A wrong NOT REPRODUCED sends a real bug away, which is the expensive error.
+- Sample the verdicts: a person re-checks {{SAMPLE_RULE}} of the NOT REPRODUCED, FIXED ON MAIN and SETUP OR DATA verdicts each week. A wrong NOT REPRODUCED or SETUP OR DATA sends a real bug away, which is the expensive error.
 - A wrong verdict is a failure to learn from: write it down and fix the feature file, the control skill or this prompt (see `skills/_skill-from-failure.md`).
 - Count per week: reports, verdict mix, share escalated, share a human overturned. Those four numbers say whether to widen or narrow the automation.
