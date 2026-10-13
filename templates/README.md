@@ -10,7 +10,7 @@ poteto-kit is built around three pillars that answer the question "how do I trus
 
 | Pillar | What it means | Templates in this pillar |
 | --- | --- | --- |
-| 1. Verification | The agent can run the real app, drive it, and capture evidence | `skills/verify-app/` (SKILL.md, `references/features/`, `references/worktree-isolation.md`, `references/cloud-environment.md`), `skills/create-verification/`, `skills/maintain-verification/`, `ci/check-feature-map.sh`, `ci/check-coverage.mjs`, `automation/bug-repro.md` (when scaling up) |
+| 1. Verification | The agent can run the real app, drive it, and capture evidence | `skills/verify-app/` (SKILL.md, `references/cli-contract.md`, `references/launch-by-app-type.md`, `references/features/`, `references/worktree-isolation.md`, `references/cloud-environment.md`), `skills/create-verification/`, `skills/maintain-verification/`, `ci/check-feature-map.sh`, `ci/check-coverage.mjs`, `automation/bug-repro.md` (when scaling up) |
 | 2. High-quality skills (skills that teach the agent to work like a real engineer) | Turn observed behavioral failures into the smallest possible skill; measure with evals | `skills/team-mode/` (with its `principles/`), `skills/investigate/`, `skills/are-you-sure-you-need-x/`, `skills/_skill-from-failure.md`, `skills/CATALOG.md`, `evals/*` |
 | 3. Agent-friendly architecture | Hard guardrails in the codebase, lint, CI; the shortest path is the right path | `guardrails/AGENTS.md.template`, `guardrails/architecture-contract.md`, `guardrails/enforcement-layers.md`, `guardrails/review-comment-to-rule.md`, `ci/ci.yml` |
 
@@ -56,7 +56,9 @@ Templates refer to each other by their path in this kit (for example `guardrails
 
 | File | What it is for | Where to copy it (suggested) |
 | --- | --- | --- |
-| `skills/verify-app/SKILL.md` | The verification skill (a "control skill"): capability list, runtime pin and environment check, picking a flow (main checkout or worktree), running `doctor` first, running the real app (web, Electron, iOS, Android, Flutter/React Native, backend HTTP API, CLI), capturing evidence, reporting. Auto-invocable by default; works in cloud VMs where a display or headless browser and a profile exist | `.agents/skills/verify-app/` |
+| `skills/verify-app/SKILL.md` | The verification skill (a "control skill"), the runtime workflow only: when to use it, a capabilities line, where it runs, prerequisites, picking a flow (main checkout or worktree), running `doctor` first, launching the real app, the feature map, three recipes (reproduce, verify, measure), the evidence report block and the rules of the report (including the verdict from the assertion), the failure policy. Auto-invocable by default; works in cloud VMs where a display or headless browser and a profile exist | `.agents/skills/verify-app/` |
+| `skills/verify-app/references/cli-contract.md` | The deterministic spec of the verify CLI, for whoever builds or changes it: capabilities, runtime pin versus environment check, the refusal rules and port derivation, the `doctor` checks, the CLI layout and its tests, gates and the lint-delta algorithm, exit codes, how `report.md` is generated from `report.json`, the console-noise allowlist, the trace size note | same directory, under `references/` |
+| `skills/verify-app/references/launch-by-app-type.md` | The launch command and driver for each app type (web, Electron, iOS, Android, Flutter/React Native, backend HTTP API, CLI). Install time only: copy the matching row into the Launch section of `verify-app/SKILL.md` | read it from the kit, or copy it beside `SKILL.md` and delete it once Launch is filled in |
 | `skills/verify-app/references/features/README.md` | The feature map index: purpose, preconditions, driving conventions, how to prove and report what was skipped, full-sweep order, catalog by area | same directory, under `references/features/` |
 | `skills/verify-app/references/features/_feature.template.md` | Template for ONE feature: overview + root selector, Sub-features, how to get there (user's point of view), how to drive it | install it in that directory and keep it there as the copy source (the one installed file that keeps its `{{` placeholders); copy it to `<feature-id>.md` per feature |
 | `skills/verify-app/references/features/cross-cutting-flows.md` | Journeys that span several features: a `## Flows` section of ``- `flow-<id>` — ...`` bullets, each with How to get to it and Driving it detail | same directory. A pure template (every flow is a placeholder): fill it in at once, or start from a stub (heading plus an empty `## Flows`) and copy the template when the first real flow exists |
@@ -91,14 +93,16 @@ Templates refer to each other by their path in this kit (for example `guardrails
 
 ### Step 1. Pillar 1: build verification (day one)
 
-1. Copy `skills/create-verification/SKILL.md` and the whole `skills/verify-app/` directory (including `references/`) into `.agents/skills/`. Fill in the basics: `{{APP_NAME}}`, `{{SKILLS_DIR}}`, `{{GATE_COMMAND}}`.
+1. Copy `skills/create-verification/SKILL.md` and the whole `skills/verify-app/` directory (including `references/`) into `.agents/skills/` (`references/launch-by-app-type.md` is only for filling the Launch section: delete the copy afterwards). Fill in the basics: `{{APP_NAME}}`, `{{SKILLS_DIR}}`, `{{GATE_COMMAND}}`.
 2. Tell the agent: "Use the create-verification skill for this repo". It explores the code with several parallel subagents, generates `verify-app/SKILL.md` and the `references/features/` directory, adds any missing stable selectors, then verifies 2-3 features itself.
 3. Review the feature map: you are the one who knows what users really do. Try it with a vague bug report (a screenshot with "???") and see whether the agent maps it to the right feature.
 4. Run it locally and watch every tool call (the "backseat driver"): see how the agent calls CDP, `adb` or the simulator.
 5. If you have several agents, or you work in parallel with an agent, keep `references/worktree-isolation.md` and install the behavior of refusing when the target is ambiguous.
 6. If the app has a login, keep `references/test-account.md` and let the CLI create the test account. Keep `references/evidence-export.md` only if someone must read the evidence outside Markdown.
 
-Fill in `verify-app/SKILL.md`: `{{APP_NAME}}`, `{{APP_TYPE}}`, `{{INSTALL_COMMAND}}`, `{{DEV_COMMAND}}`, `{{APP_URL}}` or `{{CDP_PORT}}`, `{{CLI_NAME}}`, `{{CLI_FILE}}`, `{{DEFAULT_PORT}}`, `{{DEFAULT_PROFILE_DIR}}`, `{{ARTIFACTS_DIR}}`, `{{TEST_DATA_OR_LOGIN}}`, `{{CREDENTIALS_FILE}}`, `{{DEFAULT_BRANCH}}`, `{{RUNTIME_VERSION_FILE}}`, `{{REQUIRED_TOOLS}}`, `{{SIMULATOR_NAME}}`. Delete the parts that don't apply to your app type (web, Electron, iOS, Android, Flutter/React Native, backend API or CLI). Note that a real verification skill has its own CLI with `--help` and its own tests. The frontmatter line `disable-model-invocation: false` is a literal on purpose (so the file is valid YAML before you edit it); change it to `true` only if you want explicit `/verify-app` invocation.
+Fill in `verify-app/SKILL.md`: `{{APP_NAME}}`, `{{APP_TYPE}}`, `{{INSTALL_COMMAND}}`, `{{DEV_COMMAND}}`, `{{APP_URL}}` (or `{{CDP_PORT}}` or `{{SIMULATOR_NAME}}`, by app type), `{{LAUNCH_DRIVER}}`, `{{CLI_NAME}}`, `{{CLI_FILE}}`, `{{DEFAULT_PORT}}`, `{{DEFAULT_PROFILE_DIR}}`, `{{ARTIFACTS_DIR}}`, `{{TEST_DATA_OR_LOGIN}}`, `{{CREDENTIALS_FILE}}`, `{{DEFAULT_BRANCH}}`, `{{REQUIRED_TOOLS}}`. `{{DEV_COMMAND}}`, the "Reached at" line and `{{LAUNCH_DRIVER}}` come from the row for your app type (web, Electron, iOS, Android, Flutter/React Native, backend API or CLI) in `references/launch-by-app-type.md`; the rest of that file is not needed after that. `references/cli-contract.md` has `{{RUNTIME_VERSION_FILE}}` and a few of the same slots (`{{CLI_NAME}}`, `{{CLI_FILE}}`, `{{DEFAULT_PORT}}`, `{{DEFAULT_PROFILE_DIR}}`, `{{DEFAULT_BRANCH}}`). Delete the recipes that don't apply. A real verification skill has its own CLI with `--help` and its own tests; `references/cli-contract.md` is the spec to build it from, so read it before you build or change the CLI, and `SKILL.md` keeps only the workflow.
+
+The frontmatter line `disable-model-invocation: false` is a literal on purpose, so the file is valid YAML before you edit it. It lets the agent load the skill on its own when the description matches. That is the default because the skill has to fire when the agent is about to say "done" or gets a bug report, with nobody remembering to ask. Set it to `true` if driving the app is costly or touches something shared (a live session, a paid environment, a cloud VM), or if you want the skill only on an explicit `/verify-app` (Claude Code and Cursor honour it). Codex ignores the key; there, add `agents/openai.yaml` with `policy: { allow_implicit_invocation: false }` instead.
 
 Structure of `references/features/` (one file per feature):
 
@@ -172,7 +176,7 @@ Generated by grepping every `{{...}}` in `templates/` (all files except this REA
 | `{{APP_NAME}}` | Display name of the app the agent drives and verifies. | `CATALOG.md`, `create-verification/SKILL.md`, `verify-app/SKILL.md`, `features/README.md` |
 | `{{APP_SHORT}}` | Short name of the app, used as a skill-name part in the catalog (for example in `check-<app>-perf-regression`). | `CATALOG.md` |
 | `{{INSTALL_COMMAND}}` | Clean, lockfile-exact dependency install (for example `npm ci`). | `ci/ci.yml`, `guardrails/AGENTS.md.template`, `verify-app/SKILL.md` |
-| `{{DEV_COMMAND}}` | Command that starts the app the way users reach it (dev server, desktop shell, simulator build). | `guardrails/AGENTS.md.template`, `verify-app/SKILL.md`, `verify-app/references/cloud-environment.md` |
+| `{{DEV_COMMAND}}` | Command that starts the app the way users reach it (dev server, desktop shell, simulator build). | `guardrails/AGENTS.md.template`, `verify-app/SKILL.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/launch-by-app-type.md` |
 | `{{TEST_COMMAND}}` | Command that runs the unit tests. | `guardrails/AGENTS.md.template`, `guardrails/enforcement-layers.md` |
 | `{{LINT_COMMAND}}` | Command that runs the linter. | `guardrails/enforcement-layers.md` |
 | `{{TYPECHECK_COMMAND}}` | Command that runs the type checker or compiler diagnostics. | `guardrails/enforcement-layers.md` |
@@ -183,7 +187,7 @@ Generated by grepping every `{{...}}` in `templates/` (all files except this REA
 | `{{FEATURES_DIR}}` | Directory with one folder per feature. Default `src/features`. | `automation/automerge-policy.md`, `guardrails/AGENTS.md.template`, `guardrails/architecture-contract.md`, `guardrails/enforcement-layers.md`, `guardrails/review-comment-to-rule.md`, `create-verification/SKILL.md`, `maintain-verification/SKILL.md`, `features/README.md`, `features/_feature.template.md` |
 | `{{FEATURE_MAP_DIR}}` | The feature map directory. Default `<SKILLS_DIR>/verify-app/references/features`. | `automation/bug-repro.md`, `guardrails/AGENTS.md.template`, `guardrails/review-comment-to-rule.md`, `maintain-verification/SKILL.md` |
 | `{{SHARED_DIR}}` | Directory for code used by two or more features. | `automation/automerge-policy.md`, `guardrails/AGENTS.md.template` |
-| `{{DEFAULT_BRANCH}}` | Your default branch name (for example `main`). The base for the lint delta and for the before/after worktree is `origin/{{DEFAULT_BRANCH}}`. | `automation/automerge-policy.md`, `verify-app/SKILL.md` |
+| `{{DEFAULT_BRANCH}}` | Your default branch name (for example `main`). The base for the lint delta and for the before/after worktree is `origin/{{DEFAULT_BRANCH}}`. | `automation/automerge-policy.md`, `verify-app/SKILL.md`, `verify-app/references/cli-contract.md` |
 | `{{OWNER}}` | A person, team or area that owns a skill or router (in `team-mode` and the catalog). | `CATALOG.md`, `team-mode/SKILL.md` |
 | `{{DATE}}` | A date (rows of the promoted-rules table, the auto-merge ledger). | `automation/automerge-policy.md`, `guardrails/review-comment-to-rule.md` |
 
@@ -192,18 +196,19 @@ Generated by grepping every `{{...}}` in `templates/` (all files except this REA
 | Placeholder | Meaning | Used in |
 | --- | --- | --- |
 | `{{APP_TYPE}}` | One of web, electron, ios, android, cross-platform mobile, backend HTTP API, cli (keep only the ones that apply). | `verify-app/SKILL.md` |
-| `{{APP_URL}}` | URL the web app or HTTP API serves at in development. | `verify-app/SKILL.md` |
-| `{{CDP_PORT}}` | Chrome DevTools Protocol remote-debugging port, for web and Electron. | `verify-app/SKILL.md` |
-| `{{CLI_NAME}}` | Name of the control skill's own CLI (the command that runs `doctor`, `--worktree`, `--target`, `account create`, and so on). | `verify-app/SKILL.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/evidence-export.md`, `verify-app/references/test-account.md`, `verify-app/references/worktree-isolation.md` |
-| `{{CLI_FILE}}` | Repo path of that CLI's entry point (suggested `scripts/verify/cli.ts`; the CLI lives in the repo, not in the skill folder). | `verify-app/SKILL.md` |
-| `{{DEFAULT_PORT}}` | Port of the shared instance in the main checkout. | `verify-app/SKILL.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/worktree-isolation.md` |
-| `{{DEFAULT_PROFILE_DIR}}` | Profile or user-data directory of the shared instance (the human's session). | `verify-app/SKILL.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/worktree-isolation.md` |
+| `{{APP_URL}}` | URL the web app or HTTP API serves at in development. It fills the "Reached at" line of Launch. | `verify-app/SKILL.md`, `verify-app/references/launch-by-app-type.md` |
+| `{{CDP_PORT}}` | Chrome DevTools Protocol remote-debugging port, for web and Electron. It can fill the "Reached at" line of Launch. | `verify-app/SKILL.md`, `verify-app/references/launch-by-app-type.md` |
+| `{{LAUNCH_DRIVER}}` | How you drive the app and what to record, in the Launch section of `verify-app/SKILL.md`: the last cell of your app type's row in `verify-app/references/launch-by-app-type.md`. | `verify-app/SKILL.md`, `verify-app/references/launch-by-app-type.md` |
+| `{{CLI_NAME}}` | Name of the control skill's own CLI (the command that runs `doctor`, `--worktree`, `--target`, `account create`, and so on). | `verify-app/SKILL.md`, `verify-app/references/cli-contract.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/evidence-export.md`, `verify-app/references/test-account.md`, `verify-app/references/worktree-isolation.md` |
+| `{{CLI_FILE}}` | Repo path of that CLI's entry point (suggested `scripts/verify/cli.ts`; the CLI lives in the repo, not in the skill folder). | `verify-app/SKILL.md`, `verify-app/references/cli-contract.md` |
+| `{{DEFAULT_PORT}}` | Port of the shared instance in the main checkout. | `verify-app/SKILL.md`, `verify-app/references/cli-contract.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/worktree-isolation.md` |
+| `{{DEFAULT_PROFILE_DIR}}` | Profile or user-data directory of the shared instance (the human's session). | `verify-app/SKILL.md`, `verify-app/references/cli-contract.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/worktree-isolation.md` |
 | `{{ARTIFACTS_DIR}}` | Where each run writes screenshots, logs, traces and `report.json`/`report.md`. Suggested `artifacts/verify/<timestamp>/`. | `verify-app/SKILL.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/evidence-export.md` |
 | `{{TEST_DATA_OR_LOGIN}}` | How the agent gets test data or a signed-in state. | `verify-app/SKILL.md` |
 | `{{CREDENTIALS_FILE}}` | User config file, outside the repo, with mode 600, where the CLI keeps the test account's credentials (for example `~/.config/<app>/verify.env`). | `verify-app/SKILL.md`, `verify-app/references/test-account.md` |
 | `{{REQUIRED_TOOLS}}` | Tools the skill needs installed (browsers, simulators, `adb`, Maestro, `curl`). | `verify-app/SKILL.md` |
-| `{{SIMULATOR_NAME}}` | Name of the iOS simulator, Android emulator or device to boot. | `verify-app/SKILL.md` |
-| `{{RUNTIME_VERSION_FILE}}` | File that pins the exact runtime version (for example a Node or toolchain version file). | `verify-app/SKILL.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/worktree-isolation.md` |
+| `{{SIMULATOR_NAME}}` | Name of the iOS simulator, Android emulator or device to boot. It can fill the "Reached at" line of Launch. | `verify-app/SKILL.md`, `verify-app/references/launch-by-app-type.md` |
+| `{{RUNTIME_VERSION_FILE}}` | File that pins the exact runtime version (for example a Node or toolchain version file). | `verify-app/references/cli-contract.md`, `verify-app/references/cloud-environment.md`, `verify-app/references/worktree-isolation.md` |
 | `{{PORT_RANGE}}` | Range that worktree ports are hashed into. | `verify-app/references/cloud-environment.md`, `verify-app/references/worktree-isolation.md` |
 | `{{WORKTREE_PROFILE_DIR}}` | Per-worktree isolated profile directory. | `verify-app/references/worktree-isolation.md` |
 | `{{PROFILE_SEED_COMMAND}}` | Command that seeds a signed-in profile from your secret store (cloud VMs). | `verify-app/references/cloud-environment.md` |
@@ -400,7 +405,7 @@ Generated by grepping every `{{...}}` in `templates/` (all files except this REA
 | Placeholder | Meaning | Used in |
 | --- | --- | --- |
 | `{{PLACEHOLDER}}` | Generic mention of the `{{NAME}}` syntax; not a slot. | `automation/automerge-policy.md`, `ci/ci.yml`, `guardrails/AGENTS.md.template`, `verify-app/SKILL.md`, `features/README.md` |
-| `{{PLACEHOLDERS}}` | Same; not a slot. | `automation/bug-repro.md`, `automation/goal-ticks.md`, `guardrails/architecture-contract.md`, `guardrails/enforcement-layers.md`, `guardrails/review-comment-to-rule.md`, `_skill-from-failure.md`, `verify-app/references/cloud-environment.md`, `features/cross-cutting-flows.md`, `verify-app/references/evidence-export.md`, `verify-app/references/test-account.md`, `verify-app/references/worktree-isolation.md` |
+| `{{PLACEHOLDERS}}` | Same; not a slot. | `automation/bug-repro.md`, `automation/goal-ticks.md`, `guardrails/architecture-contract.md`, `guardrails/enforcement-layers.md`, `guardrails/review-comment-to-rule.md`, `_skill-from-failure.md`, `verify-app/references/cloud-environment.md`, `features/cross-cutting-flows.md`, `verify-app/references/evidence-export.md`, `verify-app/references/test-account.md`, `verify-app/references/worktree-isolation.md`, `verify-app/references/cli-contract.md` |
 
 ### Lower-case slots
 
@@ -441,7 +446,7 @@ Lower-case text longer than two dozen characters is a hint sentence: it says wha
 | A bug report is only a screenshot and "???", and the agent flounders | `references/features/` (the "Mapping a vague report to a feature" section) |
 | Several parallel agents trample each other's sessions | `references/worktree-isolation.md`, the `doctor` command |
 | The run needs a login and credentials keep leaking or being reused | `references/test-account.md` |
-| Lint or build noise makes the verdict meaningless, or someone has to retype the report by hand | "Gates and the verdict" and "The `report.md` is this block" in `skills/verify-app/SKILL.md`; `references/evidence-export.md` for a PDF |
+| Lint or build noise makes the verdict meaningless, or someone has to retype the report by hand | "Gates and the verdict" and "`report.md` is generated from `report.json`" in `skills/verify-app/references/cli-contract.md` (the rule that the agent pastes the block is in "Evidence report format" in `skills/verify-app/SKILL.md`); `references/evidence-export.md` for a PDF |
 | The agent asserts a cause without reading the code | `investigate` |
 | The agent asks a human questions that running it would answer | `team-mode` ("asking a human is the slow path") |
 | The agent reaches for a risky API on its own | `are-you-sure-you-need-x` (and lint if it can be banned) |

@@ -36,7 +36,7 @@ Run this skill when a change does any of:
    - New or changed sub-feature: edit that file's Sub-features list, its How to get to it bullet and its Driving it notes together, and keep the scenario's `covers` ids in step with the list.
    - Changed entry point or shortcut: rewrite the user steps and the per-OS chords.
    - Changed baseline (login, starting state, driving convention): edit `README.md`, not every feature file.
-4. **Update `verify-app/SKILL.md`** only if launch commands, driver, doctor or prerequisites changed.
+4. **Update `verify-app/SKILL.md`** only if launch commands, driver or prerequisites changed, and `verify-app/references/cli-contract.md` only if the CLI's `doctor` checks, refusal rules or other behavior changed.
 5. **Verify what you touched.** For each added or changed feature file, follow its steps with the `verify-app` skill (every entry point and path the file lists that your change can affect) and attach the evidence report to the PR. A feature file you did not run is a guess; if you cannot run it, say "unverified" in the file's gotchas and in the PR.
 6. **Run the gate:** `{{GATE_COMMAND}}` (includes the CI rules below).
 7. **State in the PR description** which feature files were added, changed or removed, and link the evidence.

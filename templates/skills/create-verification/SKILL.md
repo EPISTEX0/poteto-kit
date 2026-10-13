@@ -4,7 +4,7 @@ description: Bootstrap verification for this repo. Explore the codebase with par
 ---
 
 <!-- HOW TO USE:
-1. Install this folder next to your other skills (.agents/skills/create-verification/; see the install table in templates/README.md) together with the verify-app/ templates (SKILL.md and references/features/), which this skill fills in. Add references/worktree-isolation.md only if several instances run in parallel, and references/cloud-environment.md only when you scale to cloud agents.
+1. Install this folder next to your other skills (.agents/skills/create-verification/; see the install table in templates/README.md) together with the verify-app/ templates (SKILL.md, references/cli-contract.md and references/features/), which this skill fills in. Step 3 reads references/launch-by-app-type.md from the kit's GitHub URL; do not install it. Add references/worktree-isolation.md only if several instances run in parallel, and references/cloud-environment.md only when you scale to cloud agents.
 2. Ask your agent: "Use the create-verification skill for this repo." Replace {{APP_NAME}}, {{SKILLS_DIR}} (where your skills live; default .agents/skills), {{FEATURES_DIR}} (default src/features) and {{GATE_COMMAND}} below. Those four are the only placeholders in this file's body.
 3. Review the generated feature map yourself: you are the person who knows what users actually do. Fix wrong feature files, then commit.
 4. After this, switch to skills/maintain-verification/SKILL.md to keep the map in sync.
@@ -15,7 +15,7 @@ description: Bootstrap verification for this repo. Explore the codebase with par
 
 Goal: an agent that can start {{APP_NAME}}, get to any feature a user could mention, drive it, and bring back evidence, without a human explaining the UI. The code of the control skill is the boring part; the feature map is what makes it useful. This skill builds both from the repo, then proves them.
 
-Finish line: `{{SKILLS_DIR}}/verify-app/SKILL.md` and the directory `{{SKILLS_DIR}}/verify-app/references/features/` (a `README.md` with baseline, conventions and index, one `<feature-id>.md` per feature, `cross-cutting-flows.md`) exist with no unfilled double-brace placeholders left (`_feature.template.md` is the copy source and keeps its placeholders on purpose), every feature has a file with working steps and selectors, and 2-3 features were verified end to end with evidence reports.
+Finish line: `{{SKILLS_DIR}}/verify-app/SKILL.md`, `{{SKILLS_DIR}}/verify-app/references/cli-contract.md` and the directory `{{SKILLS_DIR}}/verify-app/references/features/` (a `README.md` with baseline, conventions and index, one `<feature-id>.md` per feature, `cross-cutting-flows.md`) exist with no unfilled double-brace placeholders left (`_feature.template.md` is the copy source and keeps its placeholders on purpose), every feature has a file with working steps and selectors, and 2-3 features were verified end to end with evidence reports.
 
 ## Step 0: Detect the app type and the way to run it
 
@@ -58,7 +58,7 @@ Work in `{{SKILLS_DIR}}/verify-app/references/features/`, starting from `README.
 
 ## Step 3: Write verify-app/SKILL.md
 
-Fill the template: app type, install, launch command, ready signal, driver, artifacts directory, test data/login. Delete the rows and recipes that do not apply. If the driver needs glue code (a CDP launcher, a simulator wrapper, a `verify` CLI that takes `--feature` and `--scenario` and writes artifacts), write the smallest script that does it and reference it in the skill.
+Fill the template: app type, install, launch command, ready signal, driver, artifacts directory, test data/login. Fill Launch from the row for the app type in the kit's `launch-by-app-type.md` (https://github.com/EPISTEX0/poteto-kit/blob/main/templates/skills/verify-app/references/launch-by-app-type.md; read it now, and the other rows do not go into the skill) and delete the recipes that do not apply. If the driver needs glue code (a CDP launcher, a simulator wrapper, a `verify` CLI that takes `--feature` and `--scenario` and writes artifacts), write the smallest script that does it and reference it in the skill. Before you write the CLI, read `verify-app/references/cli-contract.md` and implement it: the refusal rules, `doctor`, the gates, the exit codes, a `report.md` generated from `report.json`, with tests for those rules.
 
 ## Step 4: Add missing stable selectors
 
