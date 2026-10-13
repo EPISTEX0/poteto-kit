@@ -14,6 +14,13 @@
 
 <p align="center">Recipes for trusting your coding agents: verification, skills, and agent-friendly architecture — baked and ready to serve.</p>
 
+<p align="center">
+  <img src="assets/badges/github-day.png" width="250" height="55" alt="GitHub Trending #1 Repository Of The Day"> <img src="assets/badges/trendshift-day.png" width="250" height="55" alt="Trendshift #1 Repository Of The Day">
+</p>
+<p align="center">
+  <img src="assets/badges/ts-day.png" width="250" height="55" alt="Trendshift TypeScript #1 Repository Of The Day"> <img src="assets/badges/ts-week.png" width="250" height="55" alt="Trendshift TypeScript #1 Repository Of The Week"> <img src="assets/badges/ts-month.png" width="250" height="55" alt="Trendshift TypeScript #2 Repository Of The Month">
+</p>
+
 The bottleneck with coding agents isn't how fast they write code. It's how much you trust what they hand back. Until you can trust it, you are the verifier, and no amount of parallel agents will save you from that.
 
 poteto-kit is a reusable kit for developers, in three parts: **docs** (`docs/`) that explain each idea and why it works; **templates** (`templates/`) to copy into your repo; and **a runnable example** (`example/`) that proves the templates work. Template bodies are written for agents to read.
