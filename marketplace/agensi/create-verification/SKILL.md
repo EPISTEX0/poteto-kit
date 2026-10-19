@@ -16,7 +16,7 @@ This skill is self-contained: the verify-app templates it fills in are bundled i
 Detect these four values from the repo, and use them everywhere below. Do not ask the user unless a value is truly ambiguous.
 
 - `<app name>`: the `name` in the package manifest (`package.json`, `Cargo.toml`, `pyproject.toml`, `Package.swift`, ...), else the first heading of `README.md`, else the repo folder name.
-- `<skills dir>`: `.agents/skills` if it exists, else `.claude/skills` if it exists, else create `.agents/skills`.
+- `<skills dir>`: `.agents/skills` if it exists, else `.claude/skills` if it exists, else create `.agents/skills`. If you created it and you are Claude Code (which reads `.claude/skills`), also link it: `mkdir -p .claude && ln -s ../.agents/skills .claude/skills`.
 - `<features dir>`: the folder that holds one directory per feature (for example `src/features`, `app/features`, `packages/*/src/features`). If the repo has none, write `none` and use one candidate feature per route, screen or user-visible capability instead of a directory name.
 - `<gate command>`: the repo's own checks, taken from its scripts or CI config: lint, typecheck and test (for example `npm run lint && npm run typecheck && npm test`, `cargo clippy && cargo test`, `make check`). If none exists, write `none` and skip the gate runs below.
 
