@@ -10,6 +10,8 @@
 
 <p align="center">— <strong>Lauren Tan</strong>, a.k.a. <strong>poteto</strong></p>
 
+<p align="center"><sub>An unofficial community kit that distills Lauren Tan’s (poteto) public talks and posts. Not affiliated with or endorsed by her.</sub></p>
+
 <br>
 
 <p align="center">Recipes for trusting your coding agents: verification, skills, and agent-friendly architecture — baked and ready to serve.</p>
